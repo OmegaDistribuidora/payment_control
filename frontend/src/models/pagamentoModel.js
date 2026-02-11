@@ -30,7 +30,6 @@ export const defaultForm = {
 }
 
 export const sheetColumns = [
-  { key: 'id', label: 'Código', align: 'center', value: (p) => p.id ?? '' },
   { key: 'codVld', label: 'Núm. Lanç.', align: 'center', value: (p) => p.codVld ?? '' },
   {
     key: 'colaborador',

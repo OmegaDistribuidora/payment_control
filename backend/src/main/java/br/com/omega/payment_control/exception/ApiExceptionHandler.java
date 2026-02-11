@@ -7,6 +7,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -14,9 +16,11 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    private static final Logger logger = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> handleResponseStatus(ResponseStatusException ex, HttpServletRequest request) {
+        logger.warn("Request error: status={} path={} message={}", ex.getStatusCode().value(), request.getRequestURI(), ex.getReason());
         Map<String, Object> body = baseBody(ex.getStatusCode().value(), ex.getStatusCode().toString(), ex.getReason(), request);
         return ResponseEntity.status(ex.getStatusCode()).body(body);
     }
@@ -27,6 +31,7 @@ public class ApiExceptionHandler {
         ex.getBindingResult().getFieldErrors()
                 .forEach(e -> fields.put(e.getField(), e.getDefaultMessage()));
 
+        logger.warn("Validation error: path={} fields={}", request.getRequestURI(), fields);
         Map<String, Object> body = baseBody(HttpStatus.BAD_REQUEST.value(), "BAD_REQUEST", "Erro de validação", request);
         body.put("fields", fields);
 

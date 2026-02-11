@@ -273,6 +273,14 @@ public class PagamentoService {
                 .toList();
     }
 
+    @Transactional
+    public int rebuildNormalizedFields(String solicitadoPor) {
+        if (!isPrivileged()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Ação não permitida.");
+        }
+        return repo.rebuildNormalizedFields();
+    }
+
     private Pagamento buscarPorPermissao(Long id, String criadoPor) {
         if (isPrivileged()) {
             return repo.findById(id)
@@ -286,7 +294,9 @@ public class PagamentoService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) return false;
         return auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_GERENCIA") || a.getAuthority().equals("ROLE_RH"));
+                .anyMatch(a -> a.getAuthority().equals("ROLE_GERENCIA")
+                        || a.getAuthority().equals("ROLE_DIRETORIA")
+                        || a.getAuthority().equals("ROLE_RH"));
     }
 
     private PagamentoResponse toResponse(Pagamento p, Map<String, String> colaboradorMap, boolean includeRateios) {
@@ -334,7 +344,12 @@ public class PagamentoService {
         if (auth == null) return "DESCONHECIDO";
         return auth.getAuthorities().stream()
                 .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .filter(role -> role.equals("GERENCIA") || role.equals("RH") || role.equals("SOBRAL") || role.equals("CARIRI"))
+                .filter(role -> role.equals("GERENCIA")
+                        || role.equals("DIRETORIA")
+                        || role.equals("RH")
+                        || role.equals("MATRIZ")
+                        || role.equals("SOBRAL")
+                        || role.equals("CARIRI"))
                 .findFirst()
                 .orElse("USUARIO");
     }
@@ -471,6 +486,7 @@ public class PagamentoService {
                 rateio.setValor(item.valor());
                 p.getRateios().add(rateio);
             }
+            // Sempre recalcula empresa/fornecedor com base nos rateios
             String joined = rateios.stream()
                     .map(PagamentoRateioItem::nome)
                     .distinct()
@@ -478,6 +494,7 @@ public class PagamentoService {
             p.setEmpresaFornecedor(truncate(joined, MAX_EMPRESA_FORNECEDOR));
         } else {
             p.getRateios().clear();
+            // Sem rateio: mantém o valor informado e cria consistência no registro.
             p.setEmpresaFornecedor(empresaFornecedorNorm);
         }
 

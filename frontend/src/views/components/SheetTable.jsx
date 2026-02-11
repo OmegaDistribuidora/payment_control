@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { formatDate, formatStatusLabel, getColumnValue, sheetColumns } from '../../models/pagamentoModel.js'
 
-const HEADER_KEYS = new Set(['id', 'codVld', 'valor'])
+const HEADER_KEYS = new Set(['codVld', 'valor'])
 
 function SheetTable({ rows, selectedId, onSelect, loading }) {
   const hasRows = rows && rows.length > 0
@@ -50,8 +50,7 @@ function SheetTable({ rows, selectedId, onSelect, loading }) {
               >
                 <header className="card-header">
                   <div>
-                    <div className="card-title">Num. Lanc. {row.codVld || '-'}</div>
-                    <div className="card-subtitle">Codigo {row.id ?? '-'}</div>
+                    <div className="card-title">Lançamento {row.codVld || '-'}</div>
                   </div>
                   <div className="card-meta">
                     {row.status ? (

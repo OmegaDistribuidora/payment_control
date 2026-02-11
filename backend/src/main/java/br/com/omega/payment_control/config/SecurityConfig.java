@@ -35,9 +35,19 @@ public class SecurityConfig {
                 .roles("GERENCIA")
                 .build();
 
+        UserDetails diretoria = User.withUsername("diretoria")
+                .password("{noop}123")
+                .roles("DIRETORIA")
+                .build();
+
         UserDetails rh = User.withUsername("rh")
                 .password("{noop}123")
                 .roles("RH")
+                .build();
+
+        UserDetails matriz = User.withUsername("matriz")
+                .password("{noop}123")
+                .roles("MATRIZ")
                 .build();
 
         UserDetails sobral = User.withUsername("sobral")
@@ -50,6 +60,6 @@ public class SecurityConfig {
                 .roles("CARIRI")
                 .build();
 
-        return new InMemoryUserDetailsManager(gerencia, rh, sobral, cariri);
+        return new InMemoryUserDetailsManager(gerencia, diretoria, rh, matriz, sobral, cariri);
     }
 }

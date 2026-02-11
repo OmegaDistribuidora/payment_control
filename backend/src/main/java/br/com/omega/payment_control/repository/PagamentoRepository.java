@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
@@ -21,6 +22,20 @@ public interface PagamentoRepository extends JpaRepository<Pagamento, Long> {
 
     @EntityGraph(attributePaths = "rateios")
     Optional<Pagamento> findById(Long id);
+
+    @Modifying
+    @Query("""
+        update Pagamento p
+        set p.sedeNorm = lower(p.sede),
+            p.setorNorm = lower(p.setor),
+            p.despesaNorm = lower(p.despesa),
+            p.dotacaoNorm = lower(p.dotacao)
+        where p.sedeNorm is null or p.sedeNorm <> lower(p.sede)
+           or p.setorNorm is null or p.setorNorm <> lower(p.setor)
+           or p.despesaNorm is null or p.despesaNorm <> lower(p.despesa)
+           or p.dotacaoNorm is null or p.dotacaoNorm <> lower(p.dotacao)
+        """)
+    int rebuildNormalizedFields();
 
     @Query("""
         select p from Pagamento p

@@ -21,6 +21,6 @@ public record PagamentoCreateRequest(
         @Size(max = 255) String empresaFornecedor,
         @NotBlank @Size(max = 80) String setorPagamento,
         @NotNull @Positive @Digits(integer = 10, fraction = 2) BigDecimal valorTotal,
-        String descricao,
+        @Size(max = 1000) String descricao,
         List<PagamentoRateioItem> rateios
 ) {}

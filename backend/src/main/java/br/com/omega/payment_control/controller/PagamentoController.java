@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/pagamentos")
@@ -88,5 +90,13 @@ public class PagamentoController {
             Authentication auth
     ) {
         return service.listarHistorico(id, auth.getName());
+    }
+
+    @PostMapping("/normalize")
+    public Map<String, Object> normalizarCampos(Authentication auth) {
+        int updated = service.rebuildNormalizedFields(auth.getName());
+        Map<String, Object> body = new HashMap<>();
+        body.put("updated", updated);
+        return body;
     }
 }

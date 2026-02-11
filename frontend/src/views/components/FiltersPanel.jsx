@@ -37,7 +37,7 @@ function FiltersPanel({
             <option value="">Todas</option>
             {(references?.sedes || []).map((item) => (
               <option key={`sede-${item.codigo}`} value={item.nome}>
-                [{item.codigo}] {item.nome}
+                {item.nome}
               </option>
             ))}
           </select>
@@ -48,7 +48,7 @@ function FiltersPanel({
             <option value="">Todos</option>
             {(references?.setores || []).map((item) => (
               <option key={`setor-${item.codigo}`} value={item.nome}>
-                [{item.codigo}] {item.nome}
+                {item.nome}
               </option>
             ))}
           </select>
@@ -59,7 +59,7 @@ function FiltersPanel({
             <option value="">Todas</option>
             {(references?.despesas || []).map((item) => (
               <option key={`despesa-${item.codigo}`} value={item.nome}>
-                [{item.codigo}] {item.nome} - {item.dspCent}
+                {item.nome} - {item.dspCent}
               </option>
             ))}
           </select>
@@ -70,7 +70,7 @@ function FiltersPanel({
             <option value="">Todas</option>
             {(references?.dotacoes || []).map((item) => (
               <option key={`dotacao-${item.codigo}`} value={item.nome}>
-                [{item.codigo}] {item.nome}
+                {item.nome}
               </option>
             ))}
           </select>

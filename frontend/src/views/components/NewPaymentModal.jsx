@@ -217,7 +217,7 @@ function buildOptions(fieldKey, references) {
     return references.sedes.map((item) => ({
       key: `sede-${item.codigo}`,
       value: item.nome,
-      label: `[${item.codigo}] ${item.nome}`,
+      label: item.nome,
     }))
   }
   if (fieldKey === 'colaborador') {
@@ -231,33 +231,33 @@ function buildOptions(fieldKey, references) {
     return references.setores.map((item) => ({
       key: `setor-${item.codigo}`,
       value: item.nome,
-      label: `[${item.codigo}] ${item.nome}`,
+      label: item.nome,
     }))
   }
   if (fieldKey === 'despesa') {
     return references.despesas.map((item) => ({
       key: `despesa-${item.codigo}`,
       value: item.nome,
-      label: `[${item.codigo}] ${item.nome} - ${item.dspCent}`,
+      label: `${item.nome} - ${item.dspCent}`,
     }))
   }
   if (fieldKey === 'dotacao') {
     return references.dotacoes.map((item) => ({
       key: `dotacao-${item.codigo}`,
       value: item.nome,
-      label: `[${item.codigo}] ${item.nome}`,
+      label: item.nome,
     }))
   }
   if (fieldKey === 'empresaFornecedor') {
     const empresas = (references.empresas || []).map((item) => ({
       key: `empresa-${item.codigo}`,
       value: item.nome,
-      label: `[E ${item.codigo}] ${item.nome}`,
+      label: item.nome,
     }))
     const fornecedores = (references.fornecedores || []).map((item) => ({
       key: `fornecedor-${item.codigo}`,
       value: item.nome,
-      label: `[F ${item.codigo}] ${item.nome}`,
+      label: item.nome,
     }))
     return [...empresas, ...fornecedores]
   }
@@ -265,7 +265,7 @@ function buildOptions(fieldKey, references) {
     return references.setores.map((item) => ({
       key: `setor-pag-${item.codigo}`,
       value: item.nome,
-      label: `[${item.codigo}] ${item.nome}`,
+      label: item.nome,
     }))
   }
   return []
