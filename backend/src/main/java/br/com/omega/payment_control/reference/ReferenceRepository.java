@@ -138,6 +138,10 @@ public class ReferenceRepository {
         return findCodigoByNome("ref_setor", nome);
     }
 
+    public Integer findCodigoDspcentByNome(String nome) {
+        return findCodigoByNome("ref_dspcent", nome);
+    }
+
     public Integer findCodigoDespesaByNome(String nome) {
         return findCodigoByNome("ref_despesa", nome);
     }
@@ -149,6 +153,29 @@ public class ReferenceRepository {
 
     public void insertSetor(Integer codigo, String nome) {
         jdbc.update("insert into ref_setor (codigo, nome) values (?, ?)", codigo, nome);
+    }
+
+    public int nextDspcentCodigo() {
+        Integer next = jdbc.queryForObject("select coalesce(max(codigo), 0) + 1 from ref_dspcent", Integer.class);
+        return next == null ? 1 : next;
+    }
+
+    public void insertDspcent(Integer codigo, String nome) {
+        jdbc.update("insert into ref_dspcent (codigo, nome) values (?, ?)", codigo, nome);
+    }
+
+    public int nextDespesaCodigo() {
+        Integer next = jdbc.queryForObject("select coalesce(max(codigo), 0) + 1 from ref_despesa", Integer.class);
+        return next == null ? 1 : next;
+    }
+
+    public void insertDespesa(Integer codigo, String nome, Integer codMt) {
+        jdbc.update(
+                "insert into ref_despesa (codigo, nome, cod_mt) values (?, ?, ?)",
+                codigo,
+                nome,
+                codMt
+        );
     }
 
     public void replaceSetorDespesas(Integer setorCodigo, List<Integer> despesasCodigos) {

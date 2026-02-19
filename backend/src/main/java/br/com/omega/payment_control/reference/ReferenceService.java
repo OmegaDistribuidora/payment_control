@@ -124,15 +124,22 @@ public class ReferenceService {
             repository.insertSetor(setorCodigo, setorNome);
         }
 
+        Integer codMt = repository.findCodigoDspcentByNome(setorNome);
+        if (codMt == null) {
+            codMt = repository.nextDspcentCodigo();
+            repository.insertDspcent(codMt, setorNome);
+        }
+
         List<Integer> despesasCodigos = new ArrayList<>();
         for (String despesaNome : despesasNormalizadas) {
-            Integer despesaCodigo = repository.findCodigoDespesaByNome(despesaNome);
-            if (despesaCodigo == null) {
+            if (repository.existsDespesaByNome(despesaNome)) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
-                        "Despesa invalida para o setor: " + despesaNome
+                        "Despesa ja existe: " + despesaNome + ". Informe uma despesa nova."
                 );
             }
+            Integer despesaCodigo = repository.nextDespesaCodigo();
+            repository.insertDespesa(despesaCodigo, despesaNome, codMt);
             despesasCodigos.add(despesaCodigo);
         }
 

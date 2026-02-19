@@ -175,11 +175,11 @@ function PagamentosPage() {
       <SetorConfigModal
         isOpen={controller.setorModalOpen}
         form={controller.setorForm}
-        despesas={controller.references?.despesas || []}
         loading={controller.loading}
         error={controller.error}
         onNomeChange={controller.updateSetorNome}
-        onToggleDespesa={controller.toggleSetorDespesa}
+        onAddDespesa={controller.addSetorDespesa}
+        onRemoveDespesa={controller.removeSetorDespesa}
         onSave={controller.saveSetor}
         onClose={controller.closeSetorModal}
       />

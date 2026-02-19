@@ -1,25 +1,31 @@
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 
 function SetorConfigModal({
   isOpen,
   form,
-  despesas,
   loading,
   error,
   onNomeChange,
-  onToggleDespesa,
+  onAddDespesa,
+  onRemoveDespesa,
   onSave,
   onClose,
 }) {
-  const despesasOptions = useMemo(
-    () =>
-      [...(despesas || [])]
-        .filter((item) => item?.nome)
-        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
-    [despesas]
-  )
+  const [despesaInput, setDespesaInput] = useState('')
+
+  useEffect(() => {
+    if (!isOpen) return
+    setDespesaInput('')
+  }, [isOpen])
 
   if (!isOpen) return null
+
+  const handleAddDespesa = () => {
+    const value = despesaInput.trim()
+    if (!value) return
+    onAddDespesa(value)
+    setDespesaInput('')
+  }
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true">
@@ -49,21 +55,49 @@ function SetorConfigModal({
 
           <div className="modal-field">
             <label className="modal-label">Despesas do setor</label>
+            <div className="setor-despesas-add">
+              <input
+                className="modal-input"
+                type="text"
+                value={despesaInput}
+                onChange={(event) => setDespesaInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    handleAddDespesa()
+                  }
+                }}
+                placeholder="Digite uma despesa e clique em Adicionar"
+                disabled={loading}
+              />
+              <button
+                className="modal-action ghost"
+                type="button"
+                onClick={handleAddDespesa}
+                disabled={loading || !despesaInput.trim()}
+              >
+                Adicionar
+              </button>
+            </div>
             <div className="setor-despesas-list">
-              {despesasOptions.map((item) => {
-                const checked = Boolean(form?.despesas?.includes(item.nome))
-                return (
-                  <label key={`setor-despesa-${item.codigo}`} className="setor-despesa-item">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => onToggleDespesa(item.nome)}
+              {(form?.despesas || []).length ? (
+                (form?.despesas || []).map((item) => (
+                  <div key={`setor-despesa-${item}`} className="setor-despesa-item">
+                    <span>{item}</span>
+                    <button
+                      type="button"
+                      className="setor-despesa-remove"
+                      onClick={() => onRemoveDespesa(item)}
                       disabled={loading}
-                    />
-                    <span>{item.nome}</span>
-                  </label>
-                )
-              })}
+                      title="Remover despesa"
+                    >
+                      x
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="setor-despesa-empty">Nenhuma despesa adicionada.</div>
+              )}
             </div>
           </div>
 
@@ -84,4 +118,3 @@ function SetorConfigModal({
 }
 
 export default SetorConfigModal
-

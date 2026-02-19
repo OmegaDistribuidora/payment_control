@@ -421,15 +421,24 @@ export function usePagamentosController() {
     setSetorForm((prev) => ({ ...prev, nome }))
   }
 
-  const toggleSetorDespesa = (despesa) => {
+  const addSetorDespesa = (despesaRaw) => {
+    const despesa = String(despesaRaw || '').trim()
+    if (!despesa) return
     setSetorForm((prev) => {
       const atual = Array.isArray(prev.despesas) ? prev.despesas : []
-      const existe = atual.includes(despesa)
-      const despesas = existe
-        ? atual.filter((item) => item !== despesa)
-        : [...atual, despesa].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      const norm = normalizeText(despesa)
+      const existe = atual.some((item) => normalizeText(item) === norm)
+      if (existe) return prev
+      const despesas = [...atual, despesa].sort((a, b) => a.localeCompare(b, 'pt-BR'))
       return { ...prev, despesas }
     })
+  }
+
+  const removeSetorDespesa = (despesa) => {
+    setSetorForm((prev) => ({
+      ...prev,
+      despesas: (prev.despesas || []).filter((item) => item !== despesa),
+    }))
   }
 
   const saveSetor = async () => {
@@ -452,7 +461,7 @@ export function usePagamentosController() {
       return
     }
     if (!despesas.length) {
-      showError('Selecione ao menos uma despesa.')
+      showError('Adicione ao menos uma despesa.')
       return
     }
 
@@ -811,7 +820,8 @@ export function usePagamentosController() {
     updateForm,
     updateFilters,
     updateSetorNome,
-    toggleSetorDespesa,
+    addSetorDespesa,
+    removeSetorDespesa,
     savePagamento,
     saveSetor,
     removePagamento,
@@ -819,4 +829,12 @@ export function usePagamentosController() {
     goNextPage,
     goPrevPage,
   }
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
 }
