@@ -18,7 +18,7 @@ import {
   listarHistorico,
   listarPagamentos,
 } from '../services/pagamentosService.js'
-import { listarReferenciasCached } from '../services/referenciasService.js'
+import { listarReferencias, listarReferenciasCached } from '../services/referenciasService.js'
 
 export function usePagamentosController() {
   const [auth, setAuth] = useState(loadAuth())
@@ -251,14 +251,41 @@ export function usePagamentosController() {
       return
     }
     const cleaned = { username, password }
-    saveAuth(cleaned)
-    setAuth(cleaned)
-    setAuthModalOpen(false)
-    setPageCache({})
-    setPrefetchCache({})
-    await Promise.all([fetchPagamentos({ pageNumber: 0, authOverride: cleaned }), fetchReferencias(cleaned)])
-    if (viewMode === 'spreadsheet') {
-      await fetchSpreadsheetRows({ authOverride: cleaned })
+    setLoading(true)
+    try {
+      // Valida usuário/senha antes de considerar login concluído.
+      const bundle = await listarReferencias(cleaned)
+      setReferences({
+        setores: bundle?.setores || [],
+        despesas: bundle?.despesas || [],
+        sedes: bundle?.sedes || [],
+        dotacoes: bundle?.dotacoes || [],
+        empresas: bundle?.empresas || [],
+        fornecedores: bundle?.fornecedores || [],
+        colaboradores: bundle?.colaboradores || [],
+      })
+
+      saveAuth(cleaned)
+      setAuth(cleaned)
+      setAuthModalOpen(false)
+      setPageCache({})
+      setPrefetchCache({})
+
+      await fetchPagamentos({ pageNumber: 0, authOverride: cleaned, skipCache: true })
+      if (viewMode === 'spreadsheet') {
+        await fetchSpreadsheetRows({ authOverride: cleaned })
+      }
+    } catch (err) {
+      clearAuth()
+      setAuth(null)
+      setAuthModalOpen(true)
+      if (err?.status === 401) {
+        showError('Credenciais invalidas.')
+      } else {
+        showError(err?.message || 'Nao foi possivel autenticar no backend.')
+      }
+    } finally {
+      setLoading(false)
     }
   }
 

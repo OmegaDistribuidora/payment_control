@@ -11,6 +11,14 @@ export function listarReferencias(auth) {
 const CACHE_KEY = 'payment_control.referencias.v2'
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6
 
+function hasReferenceData(data) {
+  if (!data) return false
+  const sedes = Array.isArray(data.sedes) ? data.sedes.length : 0
+  const setores = Array.isArray(data.setores) ? data.setores.length : 0
+  const dotacoes = Array.isArray(data.dotacoes) ? data.dotacoes.length : 0
+  return sedes > 0 && setores > 0 && dotacoes > 0
+}
+
 export function loadCachedReferencias() {
   try {
     const raw = localStorage.getItem(CACHE_KEY)
@@ -18,6 +26,7 @@ export function loadCachedReferencias() {
     const parsed = JSON.parse(raw)
     if (!parsed?.data || !parsed?.timestamp) return null
     if (Date.now() - parsed.timestamp > CACHE_TTL_MS) return null
+    if (!hasReferenceData(parsed.data)) return null
     return parsed.data
   } catch {
     return null
@@ -25,6 +34,7 @@ export function loadCachedReferencias() {
 }
 
 export function saveCachedReferencias(data) {
+  if (!hasReferenceData(data)) return
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }))
   } catch {
