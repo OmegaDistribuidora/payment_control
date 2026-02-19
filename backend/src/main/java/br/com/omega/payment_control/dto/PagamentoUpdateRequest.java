@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 public record PagamentoUpdateRequest(
-        @NotNull LocalDate dtPagamento,
+        LocalDate dtPagamento,
         @NotNull LocalDate dtVencimento,
         @NotBlank @Size(max = 80) String sede,
         @NotBlank @Size(max = 120) String colaborador,

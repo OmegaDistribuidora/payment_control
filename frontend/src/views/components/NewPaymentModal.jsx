@@ -97,6 +97,19 @@ const DESPESA_ALIASES = {
   'coparticipacao - plano de saude': ['coparticipacao - plano de saude'],
 }
 
+const COLABORADOR_OPTIONS = [
+  'Administrativo Barroso',
+  'Diretoria',
+  'Financeiro Barroso',
+  'RH',
+  'Administrativo - Cariri',
+  'Logistica - Cariri',
+  'Financeiro Sobral',
+  'Administrativo Sobral',
+  'Administrativo Matriz',
+  'Financeiro Matriz',
+].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
 function Field({ field, value, onChange, disabled, options }) {
   if (field.type === 'display') {
     return <div className="modal-display">{field.value}</div>
@@ -126,29 +139,6 @@ function Field({ field, value, onChange, disabled, options }) {
         onChange={(event) => onChange(field.key, formatCurrencyInput(event.target.value))}
         disabled={disabled}
       />
-    )
-  }
-
-  if (field.key === 'colaborador') {
-    return (
-      <>
-        <input
-          className="modal-input"
-          type="text"
-          placeholder={field.placeholder}
-          value={value}
-          onChange={(event) => onChange(field.key, event.target.value)}
-          disabled={disabled}
-          list="colaborador-suggestions"
-        />
-        <datalist id="colaborador-suggestions">
-          {options.map((option) => (
-            <option key={option.key} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </datalist>
-      </>
     )
   }
 
@@ -314,11 +304,20 @@ function buildOptions(fieldKey, references, form) {
     }))
   }
   if (fieldKey === 'colaborador') {
-    return references.colaboradores.map((item) => ({
-      key: `colaborador-${item.codigo}`,
-      value: item.nome,
-      label: item.email ? `${item.nome} (${item.email})` : item.nome,
+    const options = COLABORADOR_OPTIONS.map((nome) => ({
+      key: `colaborador-${normalizeText(nome)}`,
+      value: nome,
+      label: nome,
     }))
+    const atual = form?.colaborador
+    if (atual && !options.some((item) => normalizeText(item.value) === normalizeText(atual))) {
+      options.push({
+        key: `colaborador-atual-${normalizeText(atual)}`,
+        value: atual,
+        label: atual,
+      })
+    }
+    return options
   }
   if (fieldKey === 'setor') {
     const setores = [...(references.setores || [])]
@@ -367,8 +366,9 @@ function buildOptions(fieldKey, references, form) {
 function buildDespesaOptions(setorSelecionado, references, despesaAtual) {
   if (!setorSelecionado) return []
 
+  const listaDinamica = resolveSetorDespesasDinamicas(setorSelecionado, references?.setorDespesas)
   const setorKey = resolveSetorKey(setorSelecionado)
-  const listaPermitida = DESPESAS_POR_SETOR[setorKey] || []
+  const listaPermitida = listaDinamica.length ? listaDinamica : DESPESAS_POR_SETOR[setorKey] || []
   const despesasDisponiveis = references?.despesas || []
   const options = []
   const used = new Set()
@@ -413,6 +413,18 @@ function resolveSetorKey(setor) {
   if (norm === 'financeiro') return 'comercial'
   if (norm === 'contabil') return 'contabil'
   return norm
+}
+
+function resolveSetorDespesasDinamicas(setorSelecionado, setorDespesas) {
+  if (!setorDespesas || typeof setorDespesas !== 'object') {
+    return []
+  }
+  const alvo = normalizeText(setorSelecionado)
+  const entry = Object.entries(setorDespesas).find(([setorNome]) => normalizeText(setorNome) === alvo)
+  if (!entry || !Array.isArray(entry[1])) {
+    return []
+  }
+  return entry[1].filter(Boolean)
 }
 
 function normalizeText(value) {

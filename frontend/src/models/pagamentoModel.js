@@ -55,10 +55,10 @@ export const sheetColumns = [
 ]
 
 export const novoPagamentoFields = [
-  { key: 'dtPagamento', label: 'Data de Pagamento', type: 'date', required: true },
+  { key: 'dtPagamento', label: 'Data de Pagamento', type: 'date', required: false },
   { key: 'dtVencimento', label: 'Data de Vencimento', type: 'date', required: true },
   { key: 'sede', label: 'Sede', type: 'select', placeholder: 'Selecione...', required: true },
-  { key: 'colaborador', label: 'Colaborador', type: 'text', placeholder: 'Digite o colaborador', required: true },
+  { key: 'colaborador', label: 'Colaborador', type: 'select', placeholder: 'Selecione...', required: true },
   { key: 'setor', label: 'Setor', type: 'select', placeholder: 'Selecione...', required: true },
   { key: 'despesa', label: 'Despesa', type: 'select', placeholder: 'Selecione...', required: true },
   { key: 'valorTotal', label: 'Valor Total', type: 'text', placeholder: '0,00', required: true },
@@ -209,7 +209,7 @@ function buildRateiosPayload(rateios) {
 
 export function buildCreatePayload(form) {
   return {
-    dtPagamento: form.dtPagamento,
+    dtPagamento: form.dtPagamento || null,
     dtVencimento: form.dtVencimento,
     sede: form.sede.trim(),
     colaborador: form.colaborador.trim(),

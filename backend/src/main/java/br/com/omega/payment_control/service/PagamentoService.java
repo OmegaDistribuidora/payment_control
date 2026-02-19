@@ -85,8 +85,9 @@ public class PagamentoService {
     }
 
     private static String buildCodVld(Long codigo, LocalDate data, Integer codColab, Integer codSede, Integer codSetor) {
-        String mm = String.format(Locale.ROOT, "%02d", data.getMonthValue());
-        String yy = String.format(Locale.ROOT, "%02d", data.getYear() % 100);
+        LocalDate baseDate = data != null ? data : LocalDate.now();
+        String mm = String.format(Locale.ROOT, "%02d", baseDate.getMonthValue());
+        String yy = String.format(Locale.ROOT, "%02d", baseDate.getYear() % 100);
         String colab = codColab == null ? "0" : String.valueOf(codColab);
         String sede = codSede == null ? "0" : String.valueOf(codSede);
         String setor = codSetor == null ? "0" : String.valueOf(codSetor);
@@ -203,7 +204,8 @@ public class PagamentoService {
             }
             Integer codSede = referenceRepository.findCodigoSedeByNome(saved.getSede());
             Integer codSetor = referenceRepository.findCodigoSetorByNome(saved.getSetor());
-            saved.setCodVld(buildCodVld(saved.getId(), saved.getDtPagamento(), codColab, codSede, codSetor));
+            LocalDate codDate = saved.getDtPagamento() != null ? saved.getDtPagamento() : saved.getDtVencimento();
+            saved.setCodVld(buildCodVld(saved.getId(), codDate, codColab, codSede, codSetor));
             saved = repo.save(saved);
         }
         logHistorico(saved.getId(), "CRIADO", buildSnapshot(saved));

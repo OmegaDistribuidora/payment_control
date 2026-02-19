@@ -41,3 +41,13 @@ create table if not exists ref_colaborador (
   nome varchar(120) not null,
   email varchar(120)
 );
+
+create table if not exists ref_setor_despesa (
+  setor_codigo integer not null,
+  despesa_codigo integer not null,
+  constraint pk_ref_setor_despesa primary key (setor_codigo, despesa_codigo),
+  constraint fk_ref_setor_despesa_setor
+    foreign key (setor_codigo) references ref_setor (codigo) on delete cascade,
+  constraint fk_ref_setor_despesa_despesa
+    foreign key (despesa_codigo) references ref_despesa (codigo) on delete cascade
+);

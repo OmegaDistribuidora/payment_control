@@ -4,8 +4,11 @@ import br.com.omega.payment_control.reference.ReferenceDtos.ColaboradorItem;
 import br.com.omega.payment_control.reference.ReferenceDtos.DespesaItem;
 import br.com.omega.payment_control.reference.ReferenceDtos.ReferenceBundle;
 import br.com.omega.payment_control.reference.ReferenceDtos.ReferenceItem;
+import br.com.omega.payment_control.reference.ReferenceDtos.SetorConfigRequest;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -70,5 +73,10 @@ public class ReferenceController {
     @PostMapping("/cache/clear")
     public void limparCache() {
         service.clearCache();
+    }
+
+    @PostMapping("/setores/config")
+    public ReferenceBundle salvarSetorConfig(@RequestBody @Valid SetorConfigRequest request) {
+        return service.salvarSetorConfig(request);
     }
 }

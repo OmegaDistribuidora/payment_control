@@ -1,6 +1,7 @@
 package br.com.omega.payment_control.reference;
 
 import java.util.List;
+import java.util.Map;
 
 public final class ReferenceDtos {
 
@@ -19,6 +20,12 @@ public final class ReferenceDtos {
             List<ReferenceItem> dotacoes,
             List<ReferenceItem> empresas,
             List<ReferenceItem> fornecedores,
-            List<ColaboradorItem> colaboradores
+            List<ColaboradorItem> colaboradores,
+            Map<String, List<String>> setorDespesas
+    ) {}
+
+    public record SetorConfigRequest(
+            String nome,
+            List<String> despesas
     ) {}
 }

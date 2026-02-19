@@ -7,7 +7,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Repository
 public class ReferenceRepository {
@@ -23,6 +26,25 @@ public class ReferenceRepository {
                 "select codigo, nome from ref_setor order by codigo",
                 (rs, row) -> new ReferenceItem(rs.getInt("codigo"), rs.getString("nome"))
         );
+    }
+
+    public Map<String, List<String>> listSetorDespesas() {
+        String sql = """
+                select s.nome as setor_nome, d.nome as despesa_nome
+                from ref_setor_despesa sd
+                join ref_setor s on s.codigo = sd.setor_codigo
+                join ref_despesa d on d.codigo = sd.despesa_codigo
+                order by lower(s.nome), lower(d.nome)
+                """;
+        return jdbc.query(sql, rs -> {
+            Map<String, List<String>> result = new LinkedHashMap<>();
+            while (rs.next()) {
+                String setor = rs.getString("setor_nome");
+                String despesa = rs.getString("despesa_nome");
+                result.computeIfAbsent(setor, ignored -> new ArrayList<>()).add(despesa);
+            }
+            return result;
+        });
     }
 
     public List<ReferenceItem> listDspCentros() {
@@ -113,6 +135,35 @@ public class ReferenceRepository {
 
     public Integer findCodigoSetorByNome(String nome) {
         return findCodigoByNome("ref_setor", nome);
+    }
+
+    public Integer findCodigoDespesaByNome(String nome) {
+        return findCodigoByNome("ref_despesa", nome);
+    }
+
+    public int nextSetorCodigo() {
+        Integer next = jdbc.queryForObject("select coalesce(max(codigo), 0) + 1 from ref_setor", Integer.class);
+        return next == null ? 1 : next;
+    }
+
+    public void insertSetor(Integer codigo, String nome) {
+        jdbc.update("insert into ref_setor (codigo, nome) values (?, ?)", codigo, nome);
+    }
+
+    public void replaceSetorDespesas(Integer setorCodigo, List<Integer> despesasCodigos) {
+        jdbc.update("delete from ref_setor_despesa where setor_codigo = ?", setorCodigo);
+        if (despesasCodigos == null || despesasCodigos.isEmpty()) {
+            return;
+        }
+        jdbc.batchUpdate(
+                "insert into ref_setor_despesa (setor_codigo, despesa_codigo) values (?, ?) on conflict do nothing",
+                despesasCodigos,
+                despesasCodigos.size(),
+                (ps, despesaCodigo) -> {
+                    ps.setInt(1, setorCodigo);
+                    ps.setInt(2, despesaCodigo);
+                }
+        );
     }
 
     public Integer findCodigoColaboradorByLogin(String login) {

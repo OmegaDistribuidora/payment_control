@@ -4,6 +4,7 @@ function TopBar({
   onCreate,
   onHistory,
   onToggleFilters,
+  onConfigSetor,
   onToggleView,
   viewMode,
   onReload,
@@ -11,6 +12,7 @@ function TopBar({
   isAuthenticated,
   onAuthAction,
   loading,
+  showSetorButton,
 }) {
   return (
     <header className="topbar">
@@ -42,6 +44,11 @@ function TopBar({
         <button className="topbar-action" type="button" onClick={onToggleFilters}>
           Filtrar
         </button>
+        {showSetorButton ? (
+          <button className="topbar-action" type="button" onClick={onConfigSetor}>
+            Setor
+          </button>
+        ) : null}
         <button
           className={`topbar-action${viewMode === 'spreadsheet' ? ' active' : ''}`}
           type="button"

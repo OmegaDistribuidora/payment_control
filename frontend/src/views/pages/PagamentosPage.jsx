@@ -8,6 +8,7 @@ import SheetTable from '../components/SheetTable.jsx'
 import SpreadsheetTable from '../components/SpreadsheetTable.jsx'
 import TopBar from '../components/TopBar.jsx'
 import AuthModal from '../components/AuthModal.jsx'
+import SetorConfigModal from '../components/SetorConfigModal.jsx'
 import { formatDate, formatMonth } from '../../models/pagamentoModel.js'
 import '../../styles/payments.css'
 
@@ -71,6 +72,7 @@ function PagamentosPage() {
         onCreate={controller.openCreateModal}
         onHistory={controller.openHistoryModal}
         onToggleFilters={controller.toggleFilters}
+        onConfigSetor={controller.openSetorModal}
         onToggleView={controller.toggleViewMode}
         viewMode={controller.viewMode}
         onReload={handleReload}
@@ -78,6 +80,7 @@ function PagamentosPage() {
         isAuthenticated={Boolean(controller.auth)}
         onAuthAction={handleAuthAction}
         loading={controller.loading}
+        showSetorButton={controller.isAdmin}
       />
       <FiltersBar
         filters={controller.filters}
@@ -168,6 +171,17 @@ function PagamentosPage() {
         isOpen={controller.authModalOpen}
         initialAuth={controller.auth}
         onSubmit={controller.handleAuthSave}
+      />
+      <SetorConfigModal
+        isOpen={controller.setorModalOpen}
+        form={controller.setorForm}
+        despesas={controller.references?.despesas || []}
+        loading={controller.loading}
+        error={controller.error}
+        onNomeChange={controller.updateSetorNome}
+        onToggleDespesa={controller.toggleSetorDespesa}
+        onSave={controller.saveSetor}
+        onClose={controller.closeSetorModal}
       />
     </div>
   )

@@ -18,7 +18,12 @@ import {
   listarHistorico,
   listarPagamentos,
 } from '../services/pagamentosService.js'
-import { listarReferencias, listarReferenciasCached } from '../services/referenciasService.js'
+import {
+  listarReferencias,
+  listarReferenciasCached,
+  saveCachedReferencias,
+  salvarSetorConfig,
+} from '../services/referenciasService.js'
 
 export function usePagamentosController() {
   const [auth, setAuth] = useState(loadAuth())
@@ -34,6 +39,7 @@ export function usePagamentosController() {
     empresas: [],
     fornecedores: [],
     colaboradores: [],
+    setorDespesas: {},
   })
   const [pageInfo, setPageInfo] = useState({
     number: 0,
@@ -46,6 +52,8 @@ export function usePagamentosController() {
   const [spreadsheetLoading, setSpreadsheetLoading] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
   const [modal, setModal] = useState({ open: false, mode: 'create' })
+  const [setorModalOpen, setSetorModalOpen] = useState(false)
+  const [setorForm, setSetorForm] = useState({ nome: '', despesas: [] })
   const [form, setForm] = useState(defaultForm)
   const [originalStatus, setOriginalStatus] = useState(defaultForm.status)
   const [historyModalOpen, setHistoryModalOpen] = useState(false)
@@ -78,6 +86,21 @@ export function usePagamentosController() {
   const showError = (message) => {
     setError(message)
     setTimeout(() => setError(''), 4000)
+  }
+
+  const applyReferenceBundle = (bundle) => {
+    const next = {
+      setores: bundle?.setores || [],
+      despesas: bundle?.despesas || [],
+      sedes: bundle?.sedes || [],
+      dotacoes: bundle?.dotacoes || [],
+      empresas: bundle?.empresas || [],
+      fornecedores: bundle?.fornecedores || [],
+      colaboradores: bundle?.colaboradores || [],
+      setorDespesas: bundle?.setorDespesas || {},
+    }
+    setReferences(next)
+    return next
   }
 
   const fetchPagamentos = async ({ pageNumber, authOverride, filtersOverride, skipCache } = {}) => {
@@ -204,15 +227,7 @@ export function usePagamentosController() {
 
     try {
       const bundle = await listarReferenciasCached(authData)
-      setReferences({
-        setores: bundle?.setores || [],
-        despesas: bundle?.despesas || [],
-        sedes: bundle?.sedes || [],
-        dotacoes: bundle?.dotacoes || [],
-        empresas: bundle?.empresas || [],
-        fornecedores: bundle?.fornecedores || [],
-        colaboradores: bundle?.colaboradores || [],
-      })
+      applyReferenceBundle(bundle)
     } catch (err) {
       showError(err.message || 'Erro ao carregar referencias.')
     }
@@ -253,17 +268,9 @@ export function usePagamentosController() {
     const cleaned = { username, password }
     setLoading(true)
     try {
-      // Valida usuário/senha antes de considerar login concluído.
       const bundle = await listarReferencias(cleaned)
-      setReferences({
-        setores: bundle?.setores || [],
-        despesas: bundle?.despesas || [],
-        sedes: bundle?.sedes || [],
-        dotacoes: bundle?.dotacoes || [],
-        empresas: bundle?.empresas || [],
-        fornecedores: bundle?.fornecedores || [],
-        colaboradores: bundle?.colaboradores || [],
-      })
+      applyReferenceBundle(bundle)
+      saveCachedReferencias(bundle)
 
       saveAuth(cleaned)
       setAuth(cleaned)
@@ -293,6 +300,7 @@ export function usePagamentosController() {
     clearAuth()
     setAuth(null)
     setAuthModalOpen(true)
+    setSetorModalOpen(false)
     setPageCache({})
     setPrefetchCache({})
     setSpreadsheetRows([])
@@ -386,10 +394,84 @@ export function usePagamentosController() {
 
   const openCreateModal = () => {
     setModal({ open: true, mode: 'create' })
-    const defaultColaborador = resolveColaboradorFromAuth(auth, references)
-    setForm({ ...defaultForm, colaborador: defaultColaborador })
+    setForm({ ...defaultForm, colaborador: '' })
     setOriginalStatus(defaultForm.status)
     setError('')
+  }
+
+  const openSetorModal = () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (auth.username?.toLowerCase() !== 'admin') {
+      showError('Somente admin pode configurar setores.')
+      return
+    }
+    setSetorForm({ nome: '', despesas: [] })
+    setSetorModalOpen(true)
+    setError('')
+  }
+
+  const closeSetorModal = () => {
+    setSetorModalOpen(false)
+  }
+
+  const updateSetorNome = (nome) => {
+    setSetorForm((prev) => ({ ...prev, nome }))
+  }
+
+  const toggleSetorDespesa = (despesa) => {
+    setSetorForm((prev) => {
+      const atual = Array.isArray(prev.despesas) ? prev.despesas : []
+      const existe = atual.includes(despesa)
+      const despesas = existe
+        ? atual.filter((item) => item !== despesa)
+        : [...atual, despesa].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      return { ...prev, despesas }
+    })
+  }
+
+  const saveSetor = async () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (auth.username?.toLowerCase() !== 'admin') {
+      showError('Somente admin pode configurar setores.')
+      return
+    }
+
+    const nome = setorForm.nome?.trim()
+    const despesas = Array.isArray(setorForm.despesas)
+      ? setorForm.despesas.filter((item) => Boolean(item?.trim()))
+      : []
+
+    if (!nome) {
+      showError('Informe o nome do setor.')
+      return
+    }
+    if (!despesas.length) {
+      showError('Selecione ao menos uma despesa.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const bundle = await salvarSetorConfig(auth, { nome, despesas })
+      applyReferenceBundle(bundle)
+      saveCachedReferencias(bundle)
+      setSetorModalOpen(false)
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        showError(err.message || 'Erro ao salvar setor.')
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   const openEditModal = async (pagamentoOverride) => {
@@ -487,7 +569,6 @@ export function usePagamentosController() {
 
   const validateForm = () => {
     if (
-      !form.dtPagamento ||
       !form.dtVencimento ||
       !form.sede ||
       !form.colaborador ||
@@ -499,7 +580,7 @@ export function usePagamentosController() {
       showError('Preencha os campos obrigatorios.')
       return false
     }
-    if (form.dtVencimento < form.dtPagamento) {
+    if (form.dtPagamento && form.dtVencimento && form.dtVencimento < form.dtPagamento) {
       showError('Vencimento nao pode ser anterior ao pagamento.')
       return false
     }
@@ -678,8 +759,11 @@ export function usePagamentosController() {
     await fetchPagamentos({ pageNumber: prevPage })
   }
 
+  const isAdmin = auth?.username?.toLowerCase() === 'admin'
+
   return {
     auth,
+    isAdmin,
     authModalOpen,
     isFiltersOpen,
     filters,
@@ -691,6 +775,8 @@ export function usePagamentosController() {
     spreadsheetRows,
     spreadsheetLoading,
     modal,
+    setorModalOpen,
+    setorForm,
     form,
     historyModalOpen,
     historyItems,
@@ -716,29 +802,21 @@ export function usePagamentosController() {
     toggleViewMode,
     toggleFilters,
     openCreateModal,
+    openSetorModal,
     openEditModal,
     openHistoryModal,
     closeModal,
+    closeSetorModal,
     closeHistoryModal,
     updateForm,
     updateFilters,
+    updateSetorNome,
+    toggleSetorDespesa,
     savePagamento,
+    saveSetor,
     removePagamento,
     marcarComoPago,
     goNextPage,
     goPrevPage,
   }
-}
-
-function resolveColaboradorFromAuth(auth, references) {
-  const username = auth?.username?.trim().toLowerCase()
-  if (!username) return ''
-  const colaboradores = references?.colaboradores || []
-  const match = colaboradores.find((item) => {
-    if (!item) return false
-    const nome = item.nome?.trim().toLowerCase()
-    const email = item.email?.trim().toLowerCase()
-    return nome === username || email === username
-  })
-  return match?.nome || ''
 }

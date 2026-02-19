@@ -4,9 +4,18 @@ import br.com.omega.payment_control.reference.ReferenceDtos.ColaboradorItem;
 import br.com.omega.payment_control.reference.ReferenceDtos.DespesaItem;
 import br.com.omega.payment_control.reference.ReferenceDtos.ReferenceBundle;
 import br.com.omega.payment_control.reference.ReferenceDtos.ReferenceItem;
+import br.com.omega.payment_control.reference.ReferenceDtos.SetorConfigRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class ReferenceService {
@@ -64,6 +73,11 @@ public class ReferenceService {
         return cached != null ? cached.colaboradores() : repository.listColaboradores();
     }
 
+    public java.util.Map<String, List<String>> listarSetorDespesas() {
+        ReferenceBundle cached = getCachedBundle();
+        return cached != null ? cached.setorDespesas() : repository.listSetorDespesas();
+    }
+
     public ReferenceBundle listarTudo() {
         ReferenceBundle bundle = new ReferenceBundle(
                 listarSetores(),
@@ -72,10 +86,59 @@ public class ReferenceService {
                 listarDotacoes(),
                 listarEmpresas(),
                 listarFornecedores(),
-                listarColaboradores()
+                listarColaboradores(),
+                listarSetorDespesas()
         );
         cacheBundle(bundle);
         return bundle;
+    }
+
+    @Transactional
+    public ReferenceBundle salvarSetorConfig(SetorConfigRequest request) {
+        if (!isAdmin()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acao permitida somente para admin.");
+        }
+
+        String setorNome = trimToNull(request == null ? null : request.nome());
+        if (setorNome == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nome do setor e obrigatorio.");
+        }
+
+        List<String> despesasRaw = request == null ? null : request.despesas();
+        Set<String> despesasNormalizadas = new LinkedHashSet<>();
+        if (despesasRaw != null) {
+            for (String despesa : despesasRaw) {
+                String valor = trimToNull(despesa);
+                if (valor != null) {
+                    despesasNormalizadas.add(valor);
+                }
+            }
+        }
+        if (despesasNormalizadas.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe ao menos uma despesa para o setor.");
+        }
+
+        Integer setorCodigo = repository.findCodigoSetorByNome(setorNome);
+        if (setorCodigo == null) {
+            setorCodigo = repository.nextSetorCodigo();
+            repository.insertSetor(setorCodigo, setorNome);
+        }
+
+        List<Integer> despesasCodigos = new ArrayList<>();
+        for (String despesaNome : despesasNormalizadas) {
+            Integer despesaCodigo = repository.findCodigoDespesaByNome(despesaNome);
+            if (despesaCodigo == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Despesa invalida para o setor: " + despesaNome
+                );
+            }
+            despesasCodigos.add(despesaCodigo);
+        }
+
+        repository.replaceSetorDespesas(setorCodigo, despesasCodigos);
+        clearCache();
+        return listarTudo();
     }
 
     private ReferenceBundle getCachedBundle() {
@@ -97,5 +160,23 @@ public class ReferenceService {
     public void clearCache() {
         cachedBundle = null;
         cacheAt = 0L;
+    }
+
+    private boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return false;
+        }
+        if ("admin".equalsIgnoreCase(auth.getName())) {
+            return true;
+        }
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_GERENCIA".equals(a.getAuthority()));
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

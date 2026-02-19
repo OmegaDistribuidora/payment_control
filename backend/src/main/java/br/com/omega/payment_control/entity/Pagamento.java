@@ -56,7 +56,7 @@ public class Pagamento {
     @Column(name="dt_sistema", nullable = false, updatable = false)
     private LocalDateTime dtSistema;
 
-    @Column(name="dt_pagamento", nullable = false)
+    @Column(name="dt_pagamento")
     private LocalDate dtPagamento;
 
     @Column(name = "dt_vencimento")
