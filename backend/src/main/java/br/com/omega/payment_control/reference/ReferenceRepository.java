@@ -29,6 +29,7 @@ public class ReferenceRepository {
     }
 
     public Map<String, List<String>> listSetorDespesas() {
+        ensureSetorDespesasTable();
         String sql = """
                 select s.nome as setor_nome, d.nome as despesa_nome
                 from ref_setor_despesa sd
@@ -151,6 +152,7 @@ public class ReferenceRepository {
     }
 
     public void replaceSetorDespesas(Integer setorCodigo, List<Integer> despesasCodigos) {
+        ensureSetorDespesasTable();
         jdbc.update("delete from ref_setor_despesa where setor_codigo = ?", setorCodigo);
         if (despesasCodigos == null || despesasCodigos.isEmpty()) {
             return;
@@ -226,5 +228,23 @@ public class ReferenceRepository {
         String sql = "select 1 from " + table + " where lower(nome) = lower(?) limit 1";
         SqlRowSet rowSet = jdbc.queryForRowSet(sql, nome);
         return rowSet.next();
+    }
+
+    private void ensureSetorDespesasTable() {
+        jdbc.execute("""
+                create table if not exists ref_setor_despesa (
+                    setor_codigo integer not null,
+                    despesa_codigo integer not null,
+                    constraint pk_ref_setor_despesa primary key (setor_codigo, despesa_codigo),
+                    constraint fk_ref_setor_despesa_setor
+                        foreign key (setor_codigo) references ref_setor (codigo) on delete cascade,
+                    constraint fk_ref_setor_despesa_despesa
+                        foreign key (despesa_codigo) references ref_despesa (codigo) on delete cascade
+                )
+                """);
+        jdbc.execute("""
+                create index if not exists idx_ref_setor_despesa_setor
+                on ref_setor_despesa (setor_codigo)
+                """);
     }
 }

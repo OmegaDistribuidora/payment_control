@@ -176,11 +176,12 @@ public class PagamentoService {
                 colaborador,
                 setorPagamento
         );
-        validateDatas(req.dtPagamento(), req.dtVencimento());
+        LocalDate dtPagamento = req.dtPagamento() != null ? req.dtPagamento() : req.dtVencimento();
+        validateDatas(dtPagamento, req.dtVencimento());
         Pagamento p = new Pagamento();
         p.setCriadoPor(criadoPor);
         p.setPerfilCriador(resolvePerfilCriador());
-        p.setDtPagamento(req.dtPagamento());
+        p.setDtPagamento(dtPagamento);
         p.setDtVencimento(req.dtVencimento());
         p.setSede(sede);
         p.setSedeNorm(normalizeField(sede));
@@ -236,11 +237,12 @@ public class PagamentoService {
                 colaborador,
                 setorPagamento
         );
-        validateDatas(req.dtPagamento(), req.dtVencimento());
+        LocalDate dtPagamento = req.dtPagamento() != null ? req.dtPagamento() : req.dtVencimento();
+        validateDatas(dtPagamento, req.dtVencimento());
 
         Pagamento before = copySnapshot(p);
 
-        p.setDtPagamento(req.dtPagamento());
+        p.setDtPagamento(dtPagamento);
         p.setDtVencimento(req.dtVencimento());
         p.setSede(sede);
         p.setSedeNorm(normalizeField(sede));
