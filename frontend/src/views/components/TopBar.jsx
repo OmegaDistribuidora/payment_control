@@ -1,9 +1,11 @@
-﻿function TopBar({
+function TopBar({
   currentDate,
   currentMonth,
   onCreate,
   onHistory,
   onToggleFilters,
+  onToggleView,
+  viewMode,
   onReload,
   disableHistory,
   isAuthenticated,
@@ -39,6 +41,13 @@
         </button>
         <button className="topbar-action" type="button" onClick={onToggleFilters}>
           Filtrar
+        </button>
+        <button
+          className={`topbar-action${viewMode === 'spreadsheet' ? ' active' : ''}`}
+          type="button"
+          onClick={onToggleView}
+        >
+          {viewMode === 'spreadsheet' ? 'Cards' : 'Planilha'}
         </button>
         <button className="topbar-action topbar-action-auth" type="button" onClick={onAuthAction}>
           {isAuthenticated ? 'Logout' : 'Login'}

@@ -1,10 +1,10 @@
-﻿import { memo } from 'react'
+import { memo } from 'react'
 import { formatDate, formatStatusLabel, getColumnValue, sheetColumns } from '../../models/pagamentoModel.js'
 
 const HEADER_KEYS = new Set(['codVld', 'valor'])
-const EXTRA_KEYS = new Set(['empresaFornecedor', 'descricao'])
+const EXTRA_KEYS = new Set(['empresaFornecedor', 'descricao', 'criadoPor'])
 
-function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, loading }) {
+function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, onMarkPaid, loading }) {
   const hasRows = rows && rows.length > 0
   const showSkeleton = loading && !hasRows
   const valorColumn = sheetColumns.find((column) => column.key === 'valor')
@@ -45,6 +45,7 @@ function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, loading }) {
             const quem = getColumnValue(row, { key: 'setorPagamento' })
             const empresaFornecedor = getColumnValue(row, { key: 'empresaFornecedor' }) || '-'
             const descricao = getColumnValue(row, { key: 'descricao' }) || '-'
+            const criadoPor = getColumnValue(row, { key: 'criadoPor' }) || '-'
             const statusPago = row.status === 'PAGO'
 
             return (
@@ -92,8 +93,23 @@ function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, loading }) {
                         <span className="card-label">Descricao</span>
                         <span className="card-value">{descricao}</span>
                       </div>
+                      <div className="card-field card-field-full">
+                        <span className="card-label">Login do lancamento</span>
+                        <span className="card-value">{criadoPor}</span>
+                      </div>
                     </div>
                     <div className="card-actions">
+                      <button
+                        className="modal-action ghost"
+                        type="button"
+                        disabled={loading || statusPago}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onMarkPaid?.(row)
+                        }}
+                      >
+                        Marcar como Pago
+                      </button>
                       <button
                         className="modal-action primary"
                         type="button"

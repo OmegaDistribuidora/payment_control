@@ -1,9 +1,10 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildCreatePayload,
   buildUpdatePayload,
   defaultFilters,
   defaultForm,
+  mapApiToForm,
   parseCurrency,
   toInputDate,
 } from '../models/pagamentoModel.js'
@@ -17,7 +18,6 @@ import {
   listarHistorico,
   listarPagamentos,
 } from '../services/pagamentosService.js'
-import { mapApiToForm } from '../models/pagamentoModel.js'
 import { listarReferenciasCached } from '../services/referenciasService.js'
 
 export function usePagamentosController() {
@@ -41,6 +41,9 @@ export function usePagamentosController() {
     totalPages: 0,
     totalElements: 0,
   })
+  const [viewMode, setViewMode] = useState('cards')
+  const [spreadsheetRows, setSpreadsheetRows] = useState([])
+  const [spreadsheetLoading, setSpreadsheetLoading] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
   const [modal, setModal] = useState({ open: false, mode: 'create' })
   const [form, setForm] = useState(defaultForm)
@@ -58,7 +61,8 @@ export function usePagamentosController() {
 
   const totalValue = useMemo(() => {
     return pagamentos.reduce((sum, pagamento) => {
-      const valor = typeof pagamento.valorTotal === 'number' ? pagamento.valorTotal : parseCurrency(pagamento.valorTotal)
+      const valor =
+        typeof pagamento.valorTotal === 'number' ? pagamento.valorTotal : parseCurrency(pagamento.valorTotal)
       return sum + (valor || 0)
     }, 0)
   }, [pagamentos])
@@ -74,33 +78,6 @@ export function usePagamentosController() {
   const showError = (message) => {
     setError(message)
     setTimeout(() => setError(''), 4000)
-  }
-
-  const handleAuthSave = async (credentials) => {
-    const username = credentials?.username?.trim()
-    const password = credentials?.password
-    if (!username || !password) {
-      showError('Informe usuÃ¡rio e senha.')
-      return
-    }
-    const cleaned = { username, password }
-    saveAuth(cleaned)
-    setAuth(cleaned)
-    setAuthModalOpen(false)
-    setPageCache({})
-    setPrefetchCache({})
-    await Promise.all([
-      fetchPagamentos({ pageNumber: 0, authOverride: cleaned }),
-      fetchReferencias(cleaned),
-    ])
-  }
-
-  const handleAuthClear = () => {
-    clearAuth()
-    setAuth(null)
-    setAuthModalOpen(true)
-    setPageCache({})
-    setPrefetchCache({})
   }
 
   const fetchPagamentos = async ({ pageNumber, authOverride, filtersOverride, skipCache } = {}) => {
@@ -145,10 +122,15 @@ export function usePagamentosController() {
     fetchAbortRef.current = controller
     setLoading(true)
     try {
-      const data = await listarPagamentos(authData, activeFilters, {
-        number: targetPage,
-        size: pageInfo.size,
-      }, controller.signal)
+      const data = await listarPagamentos(
+        authData,
+        activeFilters,
+        {
+          number: targetPage,
+          size: pageInfo.size,
+        },
+        controller.signal
+      )
       if (requestId !== requestIdRef.current) return
       setPagamentos(data.content ?? [])
       setPageInfo({
@@ -167,7 +149,7 @@ export function usePagamentosController() {
       if (err?.name === 'AbortError') return
       if (err.status === 401) {
         setAuthModalOpen(true)
-        showError('Credenciais invÃ¡lidas.')
+        showError('Credenciais invalidas.')
       } else {
         showError(err.message || 'Erro ao carregar pagamentos.')
       }
@@ -175,6 +157,44 @@ export function usePagamentosController() {
       if (requestId === requestIdRef.current) {
         setLoading(false)
       }
+    }
+  }
+
+  const fetchSpreadsheetRows = async ({ authOverride, filtersOverride } = {}) => {
+    const authData = authOverride || auth
+    if (!authData) {
+      setAuthModalOpen(true)
+      return
+    }
+
+    const activeFilters = filtersOverride || filters
+    setSpreadsheetLoading(true)
+    try {
+      const firstPage = await listarPagamentos(authData, activeFilters, {
+        number: 0,
+        size: 200,
+      })
+      const totalPages = firstPage?.totalPages ?? 0
+      const allRows = [...(firstPage?.content || [])]
+
+      for (let page = 1; page < totalPages; page += 1) {
+        const pageData = await listarPagamentos(authData, activeFilters, {
+          number: page,
+          size: 200,
+        })
+        allRows.push(...(pageData?.content || []))
+      }
+
+      setSpreadsheetRows(allRows)
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        showError(err.message || 'Erro ao carregar planilha.')
+      }
+    } finally {
+      setSpreadsheetLoading(false)
     }
   }
 
@@ -194,7 +214,7 @@ export function usePagamentosController() {
         colaboradores: bundle?.colaboradores || [],
       })
     } catch (err) {
-      showError(err.message || 'Erro ao carregar referÃªncias.')
+      showError(err.message || 'Erro ao carregar referencias.')
     }
   }
 
@@ -216,6 +236,42 @@ export function usePagamentosController() {
     }
   }
 
+  const refreshVisibleData = async (targetPage = 0) => {
+    await fetchPagamentos({ pageNumber: targetPage, skipCache: true })
+    if (viewMode === 'spreadsheet') {
+      await fetchSpreadsheetRows()
+    }
+  }
+
+  const handleAuthSave = async (credentials) => {
+    const username = credentials?.username?.trim()
+    const password = credentials?.password
+    if (!username || !password) {
+      showError('Informe usuario e senha.')
+      return
+    }
+    const cleaned = { username, password }
+    saveAuth(cleaned)
+    setAuth(cleaned)
+    setAuthModalOpen(false)
+    setPageCache({})
+    setPrefetchCache({})
+    await Promise.all([fetchPagamentos({ pageNumber: 0, authOverride: cleaned }), fetchReferencias(cleaned)])
+    if (viewMode === 'spreadsheet') {
+      await fetchSpreadsheetRows({ authOverride: cleaned })
+    }
+  }
+
+  const handleAuthClear = () => {
+    clearAuth()
+    setAuth(null)
+    setAuthModalOpen(true)
+    setPageCache({})
+    setPrefetchCache({})
+    setSpreadsheetRows([])
+    setViewMode('cards')
+  }
+
   useEffect(() => {
     if (auth) {
       fetchPagamentos({ pageNumber: 0 })
@@ -224,11 +280,20 @@ export function usePagamentosController() {
   }, [auth])
 
   const applyFilters = async () => {
-    await fetchPagamentos({ pageNumber: 0, filtersOverride: { ...filters } })
+    const nextFilters = { ...filters }
+    await fetchPagamentos({ pageNumber: 0, filtersOverride: nextFilters })
+    if (viewMode === 'spreadsheet') {
+      await fetchSpreadsheetRows({ filtersOverride: nextFilters })
+    }
   }
 
-  const clearFilters = () => {
-    setFilters(defaultFilters)
+  const clearFilters = async () => {
+    const nextFilters = { ...defaultFilters }
+    setFilters(nextFilters)
+    await fetchPagamentos({ pageNumber: 0, filtersOverride: nextFilters })
+    if (viewMode === 'spreadsheet') {
+      await fetchSpreadsheetRows({ filtersOverride: nextFilters })
+    }
   }
 
   const applyQuickFilter = async (range) => {
@@ -250,6 +315,21 @@ export function usePagamentosController() {
       end = new Date(today.getFullYear(), today.getMonth() + 1, 0)
     }
 
+    if (range === 'mesAnterior') {
+      start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      end = new Date(today.getFullYear(), today.getMonth(), 0)
+    }
+
+    if (range === 'anoAtual') {
+      start = new Date(today.getFullYear(), 0, 1)
+      end = new Date(today.getFullYear(), 11, 31)
+    }
+
+    if (range === 'anoPassado') {
+      start = new Date(today.getFullYear() - 1, 0, 1)
+      end = new Date(today.getFullYear() - 1, 11, 31)
+    }
+
     if (range === 'ultimos30') {
       start = new Date(today)
       start.setDate(today.getDate() - 29)
@@ -262,9 +342,20 @@ export function usePagamentosController() {
       ate: toInputDate(end),
     }
     await fetchPagamentos({ pageNumber: 0, filtersOverride: nextFilters })
+    if (viewMode === 'spreadsheet') {
+      await fetchSpreadsheetRows({ filtersOverride: nextFilters })
+    }
   }
 
   const toggleFilters = () => setIsFiltersOpen((prev) => !prev)
+
+  const toggleViewMode = async () => {
+    const nextMode = viewMode === 'cards' ? 'spreadsheet' : 'cards'
+    setViewMode(nextMode)
+    if (nextMode === 'spreadsheet') {
+      await fetchSpreadsheetRows()
+    }
+  }
 
   const openCreateModal = () => {
     setModal({ open: true, mode: 'create' })
@@ -277,11 +368,11 @@ export function usePagamentosController() {
   const openEditModal = async (pagamentoOverride) => {
     const pagamento = pagamentoOverride || selectedPagamento
     if (!pagamento) {
-      showError('Selecione um lançamento para editar.')
+      showError('Selecione um lancamento para editar.')
       return
     }
     if (pagamento.status === 'PAGO') {
-      showError('Pagamento pago não pode ser editado.')
+      showError('Pagamento pago nao pode ser editado.')
       return
     }
     if (!auth) {
@@ -300,9 +391,9 @@ export function usePagamentosController() {
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
-        showError('Credenciais inválidas.')
+        showError('Credenciais invalidas.')
       } else {
-        showError(err.message || 'Erro ao carregar lançamento.')
+        showError(err.message || 'Erro ao carregar lancamento.')
       }
     } finally {
       setLoading(false)
@@ -320,7 +411,7 @@ export function usePagamentosController() {
       return
     }
     if (!selectedPagamento) {
-      showError('Selecione um lanÃ§amento para ver o histÃ³rico.')
+      showError('Selecione um lancamento para ver o historico.')
       return
     }
 
@@ -334,9 +425,9 @@ export function usePagamentosController() {
       if (err.status === 401) {
         setAuthModalOpen(true)
         setHistoryModalOpen(false)
-        showError('Credenciais invÃ¡lidas.')
+        showError('Credenciais invalidas.')
       } else {
-        setHistoryError(err.message || 'Erro ao carregar histÃ³rico.')
+        setHistoryError(err.message || 'Erro ao carregar historico.')
       }
     } finally {
       setHistoryLoading(false)
@@ -378,16 +469,19 @@ export function usePagamentosController() {
       !form.dotacao ||
       !form.setorPagamento
     ) {
-      showError('Preencha os campos obrigatÃ³rios.')
+      showError('Preencha os campos obrigatorios.')
       return false
     }
     if (form.dtVencimento < form.dtPagamento) {
-      showError('Vencimento nÃ£o pode ser anterior ao pagamento.')
+      showError('Vencimento nao pode ser anterior ao pagamento.')
       return false
     }
     const dotacao = form.dotacao?.toLowerCase()
     const exigeEmpresaFornecedor =
-      dotacao === 'empresa' || dotacao === 'fornecedor' || dotacao === 'empr/fornecedor' || dotacao === 'empresa/fornecedor'
+      dotacao === 'empresa' ||
+      dotacao === 'fornecedor' ||
+      dotacao === 'empr/fornecedor' ||
+      dotacao === 'empresa/fornecedor'
     if (!parseCurrency(form.valorTotal)) {
       showError('Informe o valor total.')
       return false
@@ -431,11 +525,11 @@ export function usePagamentosController() {
       setModal({ open: false, mode: modal.mode })
       setPageCache({})
       setPrefetchCache({})
-      await fetchPagamentos({ pageNumber: pageInfo.number, skipCache: true })
+      await refreshVisibleData(pageInfo.number)
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
-        showError('Credenciais invÃ¡lidas.')
+        showError('Credenciais invalidas.')
       } else {
         showError(err.message || 'Erro ao salvar pagamento.')
       }
@@ -451,11 +545,11 @@ export function usePagamentosController() {
       return
     }
     if (!pagamento) {
-      showError('Selecione um lançamento para excluir.')
+      showError('Selecione um lancamento para excluir.')
       return
     }
     if (pagamento.status === 'PAGO') {
-      showError('Pagamento pago não pode ser excluído.')
+      showError('Pagamento pago nao pode ser excluido.')
       return
     }
 
@@ -466,13 +560,46 @@ export function usePagamentosController() {
       setModal({ open: false, mode: modal.mode })
       setPageCache({})
       setPrefetchCache({})
-      await fetchPagamentos({ pageNumber: 0, skipCache: true })
+      await refreshVisibleData(0)
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
-        showError('Credenciais inválidas.')
+        showError('Credenciais invalidas.')
       } else {
         showError(err.message || 'Erro ao excluir pagamento.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const marcarComoPago = async (pagamentoOverride) => {
+    const pagamento = pagamentoOverride || selectedPagamento
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!pagamento) {
+      showError('Selecione um lancamento para alterar status.')
+      return
+    }
+    if (pagamento.status === 'PAGO') {
+      showError('Este lancamento ja esta pago.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await alterarStatus(auth, pagamento.id, 'PAGO')
+      setPageCache({})
+      setPrefetchCache({})
+      await refreshVisibleData(pageInfo.number)
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        showError(err.message || 'Erro ao atualizar status.')
       }
     } finally {
       setLoading(false)
@@ -533,6 +660,9 @@ export function usePagamentosController() {
     pageInfo,
     selectedId,
     selectedPagamento,
+    viewMode,
+    spreadsheetRows,
+    spreadsheetLoading,
     modal,
     form,
     historyModalOpen,
@@ -551,10 +681,12 @@ export function usePagamentosController() {
     handleAuthSave,
     handleAuthClear,
     fetchPagamentos,
+    fetchSpreadsheetRows,
     fetchReferencias,
     applyFilters,
     clearFilters,
     applyQuickFilter,
+    toggleViewMode,
     toggleFilters,
     openCreateModal,
     openEditModal,
@@ -565,6 +697,7 @@ export function usePagamentosController() {
     updateFilters,
     savePagamento,
     removePagamento,
+    marcarComoPago,
     goNextPage,
     goPrevPage,
   }
@@ -582,4 +715,3 @@ function resolveColaboradorFromAuth(auth, references) {
   })
   return match?.nome || ''
 }
-

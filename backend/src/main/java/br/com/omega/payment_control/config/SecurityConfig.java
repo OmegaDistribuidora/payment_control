@@ -30,33 +30,33 @@ public class SecurityConfig {
 
     @Bean
     InMemoryUserDetailsManager users() {
-        UserDetails gerencia = User.withUsername("gerencia")
-                .password("{noop}123")
+        UserDetails gerencia = User.withUsername("admin")
+                .password("{noop}Omega@123")
                 .roles("GERENCIA")
                 .build();
 
         UserDetails diretoria = User.withUsername("diretoria")
-                .password("{noop}123")
+                .password("{noop}Diretoria@123")
                 .roles("DIRETORIA")
                 .build();
 
         UserDetails rh = User.withUsername("rh")
-                .password("{noop}123")
+                .password("{noop}Carlos@123")
                 .roles("RH")
                 .build();
 
-        UserDetails matriz = User.withUsername("matriz")
-                .password("{noop}123")
+        UserDetails matriz = User.withUsername("omega.matriz")
+                .password("{noop}Matriz@123")
                 .roles("MATRIZ")
                 .build();
 
-        UserDetails sobral = User.withUsername("sobral")
-                .password("{noop}123")
+        UserDetails sobral = User.withUsername("omega.sobral")
+                .password("{noop}Sobral@123")
                 .roles("SOBRAL")
                 .build();
 
-        UserDetails cariri = User.withUsername("cariri")
-                .password("{noop}123")
+        UserDetails cariri = User.withUsername("omega.cariri")
+                .password("{noop}Cariri@123")
                 .roles("CARIRI")
                 .build();
 
