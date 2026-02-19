@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+﻿import { useMemo } from 'react'
 import {
   formatCurrency,
   formatCurrencyInput,
@@ -6,6 +6,96 @@ import {
   novoPagamentoFields,
   statusOptions,
 } from '../../models/pagamentoModel.js'
+
+const DESPESAS_POR_SETOR = {
+  rh: [
+    '13o Salario',
+    'Acordo Trabalhista',
+    'Ajuda De Custo Promotor',
+    'Ajuda De Custos - Transporte',
+    'Aso - Exames Adm E Demis.',
+    'Confraternizacao',
+    'Crachas E Uniformes',
+    'Despesas Com Alimentacao - Almoco',
+    'Despesas Com Reuniao',
+    'Despesas De Alimentacao Pessoal',
+    'Despesas Com Alimentacao',
+    'Diarias Avulsas',
+    'Diarias Com Tercerizados',
+    'Diarias De Mot. E Ajudantes Ext.',
+    'Ferias',
+    'Fgts',
+    'Fgts - Consignado',
+    'Fgts - Rescisao',
+    'Gratificacoes Pessoal',
+    'Inss',
+    'Plano De Saude',
+    'Coparticipacao - Plano de Saude',
+    'Plano Odontoligico',
+    'Rescisoes Trabalhistas',
+    'Folhas de pagamento - Mensal',
+    'Adiantamento quinzenal',
+    'Taxa Sindical',
+    'Vale Transporte',
+    'Viagens e Estadias',
+    'Distrato',
+    'Caju - Salario',
+    'Caju - Ferias',
+    'Caju - Combustivel',
+    'Rescisao',
+    'Pensao Alimenticia',
+    'Pro Labore',
+  ],
+  administrativo: [
+    'Agua e Esgoto',
+    'Aluguel Predio',
+    'Assistencia Medica',
+    'Cartorio / Taxas - Adm',
+    'Cesta Basica',
+    'Compra de Agua - Garrafao',
+    'Contribuicoes e Doacoes',
+    'Diversos',
+    'Energia Eletrica',
+    'Estacionamento',
+    'Imobilizados',
+    'Internet E Telefonia',
+    'Iptu',
+    'Manutencao e Conservacao Predial',
+    'Mat. de Expediente',
+    'Outros Tributos Estaduais',
+    'Outros Tributos Municipais',
+    'Pis/Cofins',
+    'Pro Labore',
+    'Salario do Administrativo',
+    'Servico De Seguranca',
+  ],
+  ti: [
+    'Aquisicao Equip. Informatica',
+    'Licenca Programas',
+    'Manutencao De Equip. Informatica',
+    'Manutencao Sistemas',
+    'Salario de TI',
+    'Tinta Para Impressoras',
+  ],
+  logistico: [
+    'Cipa e Material de Seguranca',
+    'Combustivel',
+    'Credito para Cliente por Produto Coletado',
+    'Depreciacao De Utilizacao Veiculos Proprio',
+    'Despesas Veiculo',
+    'Ipva / Licenciamento',
+    'Multa / Transito',
+    'Salario da Logistica',
+  ],
+  comercial: ['Fornecedores Invest.', 'Salario'],
+  contabil: ['Honorarios', 'Salario'],
+}
+
+const DESPESA_ALIASES = {
+  'adiantamento quinzenal': ['andiantamento quinzenal'],
+  'despesas com alimentacao - almoco': ['despesas com alimentacao - almoco'],
+  'coparticipacao - plano de saude': ['coparticipacao - plano de saude'],
+}
 
 function Field({ field, value, onChange, disabled, options }) {
   if (field.type === 'display') {
@@ -129,26 +219,29 @@ function NewPaymentModal({
         </header>
 
         <div className="modal-body form-grid">
-          {novoPagamentoFields.map((field) => (
-            <div
-              className={`modal-field${
-                field.type === 'textarea' || field.key === 'descricao' ? ' full' : ''
-              }`}
-              key={field.key}
-            >
-              <label className="modal-label">{field.label}</label>
-              <Field
-                field={field}
-                value={form[field.key] ?? ''}
-                onChange={onChange}
-                disabled={loading}
-                options={buildOptions(field.key, references)}
-              />
-            </div>
-          ))}
+          {novoPagamentoFields.map((field) => {
+            const despesaBloqueada = field.key === 'despesa' && !form.setor
+            return (
+              <div
+                className={`modal-field${
+                  field.type === 'textarea' || field.key === 'descricao' ? ' full' : ''
+                }`}
+                key={field.key}
+              >
+                <label className="modal-label">{field.label}</label>
+                <Field
+                  field={field}
+                  value={form[field.key] ?? ''}
+                  onChange={onChange}
+                  disabled={loading || despesaBloqueada}
+                  options={buildOptions(field.key, references, form)}
+                />
+              </div>
+            )
+          })}
           {rateioItems.length ? (
             <div className="modal-field full">
-              <label className="modal-label">Distribuição</label>
+              <label className="modal-label">Distribuicao</label>
               <div className="rateio-list">
                 {rateioItems.map((item) => (
                   <div className="rateio-row" key={item.key}>
@@ -167,7 +260,7 @@ function NewPaymentModal({
                 ))}
               </div>
               <div className={`rateio-status${rateioSum === total && total > 0 ? ' ok' : ''}`}>
-                Distribuído: {formatCurrency(rateioSum)} / Total: {formatCurrency(total)}
+                Distribuido: {formatCurrency(rateioSum)} / Total: {formatCurrency(total)}
               </div>
             </div>
           ) : null}
@@ -211,7 +304,7 @@ function NewPaymentModal({
 
 export default NewPaymentModal
 
-function buildOptions(fieldKey, references) {
+function buildOptions(fieldKey, references, form) {
   if (!references) return []
   if (fieldKey === 'sede') {
     return references.sedes.map((item) => ({
@@ -228,18 +321,18 @@ function buildOptions(fieldKey, references) {
     }))
   }
   if (fieldKey === 'setor') {
-    return references.setores.map((item) => ({
+    const setores = [...(references.setores || [])]
+    if (!setores.some((item) => normalizeText(item.nome) === 'comercial')) {
+      setores.push({ codigo: 'extra-comercial', nome: 'Comercial' })
+    }
+    return setores.map((item) => ({
       key: `setor-${item.codigo}`,
       value: item.nome,
       label: item.nome,
     }))
   }
   if (fieldKey === 'despesa') {
-    return references.despesas.map((item) => ({
-      key: `despesa-${item.codigo}`,
-      value: item.nome,
-      label: `${item.nome} - ${item.dspCent}`,
-    }))
+    return buildDespesaOptions(form?.setor, references, form?.despesa)
   }
   if (fieldKey === 'dotacao') {
     return references.dotacoes.map((item) => ({
@@ -269,6 +362,65 @@ function buildOptions(fieldKey, references) {
     }))
   }
   return []
+}
+
+function buildDespesaOptions(setorSelecionado, references, despesaAtual) {
+  if (!setorSelecionado) return []
+
+  const setorKey = resolveSetorKey(setorSelecionado)
+  const listaPermitida = DESPESAS_POR_SETOR[setorKey] || []
+  const despesasDisponiveis = references?.despesas || []
+  const options = []
+  const used = new Set()
+
+  for (const nomePreferencial of listaPermitida) {
+    const match = findDespesaMatch(nomePreferencial, despesasDisponiveis)
+    const value = match?.nome || nomePreferencial
+    const keyNorm = normalizeText(value)
+    if (!keyNorm || used.has(keyNorm)) continue
+    used.add(keyNorm)
+    options.push({
+      key: `despesa-${match?.codigo ?? keyNorm}`,
+      value,
+      label: nomePreferencial,
+    })
+  }
+
+  if (despesaAtual) {
+    const atualNorm = normalizeText(despesaAtual)
+    if (!used.has(atualNorm)) {
+      options.push({
+        key: `despesa-atual-${atualNorm}`,
+        value: despesaAtual,
+        label: despesaAtual,
+      })
+    }
+  }
+
+  return options
+}
+
+function findDespesaMatch(nomePreferencial, despesasDisponiveis) {
+  const nomeNorm = normalizeText(nomePreferencial)
+  const aliases = DESPESA_ALIASES[nomeNorm] || []
+  const candidatos = new Set([nomeNorm, ...aliases.map((item) => normalizeText(item))])
+
+  return despesasDisponiveis.find((item) => candidatos.has(normalizeText(item.nome)))
+}
+
+function resolveSetorKey(setor) {
+  const norm = normalizeText(setor)
+  if (norm === 'financeiro') return 'comercial'
+  if (norm === 'contabil') return 'contabil'
+  return norm
+}
+
+function normalizeText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
 }
 
 function buildRateioItems(dotacao, references) {

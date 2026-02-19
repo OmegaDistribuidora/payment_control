@@ -114,15 +114,36 @@ public class PagamentoService {
         q = normLike(q);
 
         boolean privilegiado = isPrivileged();
+        boolean filtrarDe = de != null;
+        boolean filtrarAte = ate != null;
+        boolean filtrarSede = sede != null;
+        boolean filtrarSetor = setor != null;
+        boolean filtrarDespesa = despesa != null;
+        boolean filtrarDotacao = dotacao != null;
+        boolean filtrarStatus = status != null;
+        boolean filtrarQ = q != null;
+
+        LocalDate deParam = filtrarDe ? de : LocalDate.of(1970, 1, 1);
+        LocalDate ateParam = filtrarAte ? ate : LocalDate.of(2999, 12, 31);
+        String sedeParam = filtrarSede ? sede : "";
+        String setorParam = filtrarSetor ? setor : "";
+        String despesaParam = filtrarDespesa ? despesa : "";
+        String dotacaoParam = filtrarDotacao ? dotacao : "";
+        StatusPagamento statusParam = filtrarStatus ? status : StatusPagamento.LANCADO;
+        String qParam = filtrarQ ? q : "%";
 
         Map<String, String> colaboradorMap = buildColaboradorMap();
         return repo.buscarMeusComFiltros(
                         criadoPor,
                         privilegiado,
-                        de, ate,
-                        sede, setor, despesa, dotacao,
-                        status,
-                        q,
+                        filtrarDe, deParam,
+                        filtrarAte, ateParam,
+                        filtrarSede, sedeParam,
+                        filtrarSetor, setorParam,
+                        filtrarDespesa, despesaParam,
+                        filtrarDotacao, dotacaoParam,
+                        filtrarStatus, statusParam,
+                        filtrarQ, qParam,
                         pageable
                 )
                 .map(p -> toResponse(p, colaboradorMap, false));

@@ -1,4 +1,4 @@
-import { statusOptions } from '../../models/pagamentoModel.js'
+﻿import { statusOptions } from '../../models/pagamentoModel.js'
 
 function FiltersPanel({
   isOpen,
@@ -7,7 +7,6 @@ function FiltersPanel({
   onChange,
   onApply,
   onClear,
-  onAuthReset,
   loading,
 }) {
   if (!isOpen) return null
@@ -65,7 +64,7 @@ function FiltersPanel({
           </select>
         </label>
         <label className="filter-field">
-          <span>Dotação</span>
+          <span>Dotacao</span>
           <select value={filters.dotacao} onChange={(event) => onChange('dotacao', event.target.value)}>
             <option value="">Todas</option>
             {(references?.dotacoes || []).map((item) => (
@@ -90,7 +89,7 @@ function FiltersPanel({
           <span>Busca</span>
           <input
             type="text"
-            placeholder="Buscar por descrição"
+            placeholder="Buscar por descricao"
             value={filters.q}
             onChange={(event) => onChange('q', event.target.value)}
           />
@@ -98,9 +97,6 @@ function FiltersPanel({
       </div>
 
       <div className="filters-actions">
-        <button className="modal-action ghost" type="button" onClick={onAuthReset}>
-          Trocar usuário
-        </button>
         <button className="modal-action ghost" type="button" onClick={onClear}>
           Limpar
         </button>

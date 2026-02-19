@@ -2,12 +2,14 @@ function TopBar({
   currentDate,
   currentMonth,
   onCreate,
-  onEdit,
   onHistory,
   onToggleFilters,
+  onToggleView,
+  viewMode,
   onReload,
-  disableEdit,
   disableHistory,
+  isAuthenticated,
+  onAuthAction,
   loading,
 }) {
   return (
@@ -22,26 +24,33 @@ function TopBar({
       <div className="topbar-info">
         <div className="info-block">
           <div className="info-label">DATA ATUAL</div>
-            <div className="info-value">{currentDate}</div>
+          <div className="info-value">{currentDate}</div>
         </div>
         <div className="info-block">
-          <div className="info-label">MÊS ATUAL</div>
-            <div className="info-value">{currentMonth}</div>
+          <div className="info-label">MES ATUAL</div>
+          <div className="info-value">{currentMonth}</div>
         </div>
       </div>
 
       <nav className="topbar-actions">
         <button className="topbar-action" type="button" onClick={onCreate}>
-          Lançamento
-        </button>
-        <button className="topbar-action" type="button" onClick={onEdit} disabled={disableEdit}>
-          Editar
+          Lancamento
         </button>
         <button className="topbar-action" type="button" onClick={onHistory} disabled={disableHistory}>
-          Histórico
+          Historico
         </button>
         <button className="topbar-action" type="button" onClick={onToggleFilters}>
           Filtrar
+        </button>
+        <button
+          className={`topbar-action${viewMode === 'spreadsheet' ? ' active' : ''}`}
+          type="button"
+          onClick={onToggleView}
+        >
+          {viewMode === 'spreadsheet' ? 'Cards' : 'Planilha'}
+        </button>
+        <button className="topbar-action topbar-action-auth" type="button" onClick={onAuthAction}>
+          {isAuthenticated ? 'Logout' : 'Login'}
         </button>
         <button className="topbar-action" type="button" onClick={onReload} disabled={loading}>
           {loading ? 'Atualizando...' : 'Atualizar'}

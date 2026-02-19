@@ -5,6 +5,7 @@ import FiltersPanel from '../components/FiltersPanel.jsx'
 import NewPaymentModal from '../components/NewPaymentModal.jsx'
 import HistoryModal from '../components/HistoryModal.jsx'
 import SheetTable from '../components/SheetTable.jsx'
+import SpreadsheetTable from '../components/SpreadsheetTable.jsx'
 import TopBar from '../components/TopBar.jsx'
 import AuthModal from '../components/AuthModal.jsx'
 import { formatDate, formatMonth } from '../../models/pagamentoModel.js'
@@ -13,10 +14,54 @@ import '../../styles/payments.css'
 function PagamentosPage() {
   const controller = usePagamentosController()
   const today = new Date()
+
   const handleSelect = useCallback(
     (id) => controller.setSelectedId(controller.selectedId === id ? null : id),
     [controller.selectedId, controller.setSelectedId]
   )
+
+  const handleAuthAction = useCallback(() => {
+    if (controller.auth) {
+      controller.handleAuthClear()
+      return
+    }
+    controller.setAuthModalOpen(true)
+  }, [controller.auth, controller.handleAuthClear, controller.setAuthModalOpen])
+
+  const handleEditRow = useCallback(
+    async (row) => {
+      await controller.openEditModal(row)
+    },
+    [controller.openEditModal]
+  )
+
+  const handleDeleteRow = useCallback(
+    async (row) => {
+      if (!row) return
+      const confirmed = window.confirm('Confirma a exclusao deste lancamento?')
+      if (!confirmed) return
+      await controller.removePagamento(row)
+    },
+    [controller.removePagamento]
+  )
+
+  const handleMarkPaid = useCallback(
+    async (row) => {
+      if (!row) return
+      const confirmed = window.confirm('Confirmar alteracao para status Pago?')
+      if (!confirmed) return
+      await controller.marcarComoPago(row)
+    },
+    [controller.marcarComoPago]
+  )
+
+  const handleReload = useCallback(async () => {
+    if (controller.viewMode === 'spreadsheet') {
+      await controller.fetchSpreadsheetRows()
+      return
+    }
+    await controller.fetchPagamentos({ pageNumber: controller.pageInfo.number, skipCache: true })
+  }, [controller.fetchPagamentos, controller.fetchSpreadsheetRows, controller.pageInfo.number, controller.viewMode])
 
   return (
     <div className="app">
@@ -24,12 +69,14 @@ function PagamentosPage() {
         currentDate={formatDate(today)}
         currentMonth={formatMonth(today)}
         onCreate={controller.openCreateModal}
-        onEdit={controller.openEditModal}
         onHistory={controller.openHistoryModal}
         onToggleFilters={controller.toggleFilters}
-        onReload={() => controller.fetchPagamentos({ pageNumber: controller.pageInfo.number })}
-        disableEdit={!controller.selectedId || controller.selectedPagamento?.status === 'PAGO'}
-        disableHistory={!controller.selectedId}
+        onToggleView={controller.toggleViewMode}
+        viewMode={controller.viewMode}
+        onReload={handleReload}
+        disableHistory={controller.viewMode !== 'cards' || !controller.selectedId}
+        isAuthenticated={Boolean(controller.auth)}
+        onAuthAction={handleAuthAction}
         loading={controller.loading}
       />
       <FiltersBar
@@ -45,45 +92,59 @@ function PagamentosPage() {
         onChange={controller.updateFilters}
         onApply={controller.applyFilters}
         onClear={controller.clearFilters}
-        onAuthReset={controller.handleAuthClear}
         loading={controller.loading}
       />
       {controller.error ? <div className="page-error">{controller.error}</div> : null}
       {controller.loading ? <div className="loading-hint">Carregando dados...</div> : null}
-      <SheetTable
-        rows={controller.pagamentos}
-        selectedId={controller.selectedId}
-        loading={controller.loading}
-        onSelect={handleSelect}
-      />
-      <div className="sheet-footer">
-        <div>
-          {controller.pageInfo.totalElements
-            ? `${controller.pageInfo.totalElements} registros`
-            : 'Nenhum registro'}
-        </div>
-        <div className="sheet-pagination">
-          <button
-            className="modal-action ghost"
-            type="button"
-            onClick={controller.goPrevPage}
-            disabled={!controller.canPaginatePrev || controller.loading}
-          >
-            Anterior
-          </button>
-          <span>
-            Página {controller.pageInfo.number + 1} de {controller.pageInfo.totalPages || 1}
-          </span>
-          <button
-            className="modal-action ghost"
-            type="button"
-            onClick={controller.goNextPage}
-            disabled={!controller.canPaginateNext || controller.loading}
-          >
-            Próxima
-          </button>
-        </div>
-      </div>
+      {controller.viewMode === 'cards' ? (
+        <>
+          <SheetTable
+            rows={controller.pagamentos}
+            selectedId={controller.selectedId}
+            loading={controller.loading}
+            onSelect={handleSelect}
+            onEdit={handleEditRow}
+            onDelete={handleDeleteRow}
+            onMarkPaid={handleMarkPaid}
+          />
+          <div className="sheet-footer">
+            <div>
+              {controller.pageInfo.totalElements
+                ? `${controller.pageInfo.totalElements} registros`
+                : 'Nenhum registro'}
+            </div>
+            <div className="sheet-pagination">
+              <button
+                className="modal-action ghost"
+                type="button"
+                onClick={controller.goPrevPage}
+                disabled={!controller.canPaginatePrev || controller.loading}
+              >
+                Anterior
+              </button>
+              <span>
+                Pagina {controller.pageInfo.number + 1} de {controller.pageInfo.totalPages || 1}
+              </span>
+              <button
+                className="modal-action ghost"
+                type="button"
+                onClick={controller.goNextPage}
+                disabled={!controller.canPaginateNext || controller.loading}
+              >
+                Proxima
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <SpreadsheetTable
+          rows={controller.spreadsheetRows}
+          loading={controller.spreadsheetLoading || controller.loading}
+          onMarkPaid={handleMarkPaid}
+          onEdit={handleEditRow}
+          onDelete={handleDeleteRow}
+        />
+      )}
       <NewPaymentModal
         isOpen={controller.modal.open}
         mode={controller.modal.mode}

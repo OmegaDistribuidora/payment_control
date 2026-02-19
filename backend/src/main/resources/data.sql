@@ -4,7 +4,8 @@ insert into ref_setor (codigo, nome) values
   (3, 'Financeiro'),
   (4, 'RH'),
   (5, 'TI'),
-  (6, 'Contabil')
+  (6, 'Contabil'),
+  (7, 'Comercial')
 on conflict (codigo) do nothing;
 
 insert into ref_dspcent (codigo, nome) values
@@ -42,7 +43,7 @@ insert into ref_despesa (codigo, nome, cod_mt) values
   (123, 'Plano Odontoligico', 1),
   (124, 'Rescisoes Trabalhistas', 1),
   (125, 'Folhas de pagamento - Mensal', 1),
-  (126, 'Andiantamento quinzenal', 1),
+  (126, 'Adiantamento quinzenal', 1),
   (127, 'Taxa Sindical', 1),
   (128, 'Vale Transporte', 1),
   (129, 'Viagens e Estadias', 1),
@@ -51,6 +52,8 @@ insert into ref_despesa (codigo, nome, cod_mt) values
   (132, 'Caju - Ferias', 1),
   (133, 'Caju - Combustivel', 1),
   (134, 'Rescisao', 1),
+  (135, 'Pensao Alimenticia', 1),
+  (136, 'Pro Labore', 1),
   (21, 'Agua e Esgoto', 2),
   (22, 'Aluguel Predio', 2),
   (23, 'Assistencia Medica', 2),
@@ -91,6 +94,10 @@ insert into ref_despesa (codigo, nome, cod_mt) values
   (61, 'Honorarios', 6),
   (62, 'Salario', 6)
 on conflict (codigo) do nothing;
+
+update ref_despesa
+set nome = 'Adiantamento quinzenal'
+where codigo = 126 and lower(nome) = 'andiantamento quinzenal';
 
 insert into ref_empresa (codigo, nome) values
   (1, 'Omega Barroso'),
