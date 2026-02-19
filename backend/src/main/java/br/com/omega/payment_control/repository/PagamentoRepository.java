@@ -41,25 +41,25 @@ public interface PagamentoRepository extends JpaRepository<Pagamento, Long> {
         select p from Pagamento p
         where (:isPrivilegiado = true or p.criadoPor = :criadoPor)
           and (
-                :de is null
+                :filtrarDe = false
                 or (p.dtVencimento is not null and p.dtVencimento >= :de)
                 or (p.dtVencimento is null and p.dtPagamento >= :de)
               )
           and (
-                :ate is null
+                :filtrarAte = false
                 or (p.dtVencimento is not null and p.dtVencimento <= :ate)
                 or (p.dtVencimento is null and p.dtPagamento <= :ate)
               )
 
-          and (:sede is null or p.sedeNorm = :sede)
-          and (:setor is null or p.setorNorm = :setor)
-          and (:despesa is null or p.despesaNorm = :despesa)
-          and (:dotacao is null or p.dotacaoNorm = :dotacao)
+          and (:filtrarSede = false or p.sedeNorm = :sede)
+          and (:filtrarSetor = false or p.setorNorm = :setor)
+          and (:filtrarDespesa = false or p.despesaNorm = :despesa)
+          and (:filtrarDotacao = false or p.dotacaoNorm = :dotacao)
 
-          and (:status is null or p.status = :status)
+          and (:filtrarStatus = false or p.status = :status)
 
           and (
-                :q is null
+                :filtrarQ = false
                 or lower(p.despesa) like :q
                 or lower(p.descricao) like :q
               )
@@ -67,13 +67,21 @@ public interface PagamentoRepository extends JpaRepository<Pagamento, Long> {
     Page<Pagamento> buscarMeusComFiltros(
             @Param("criadoPor") String criadoPor,
             @Param("isPrivilegiado") boolean isPrivilegiado,
+            @Param("filtrarDe") boolean filtrarDe,
             @Param("de") LocalDate de,
+            @Param("filtrarAte") boolean filtrarAte,
             @Param("ate") LocalDate ate,
+            @Param("filtrarSede") boolean filtrarSede,
             @Param("sede") String sede,
+            @Param("filtrarSetor") boolean filtrarSetor,
             @Param("setor") String setor,
+            @Param("filtrarDespesa") boolean filtrarDespesa,
             @Param("despesa") String despesa,
+            @Param("filtrarDotacao") boolean filtrarDotacao,
             @Param("dotacao") String dotacao,
+            @Param("filtrarStatus") boolean filtrarStatus,
             @Param("status") StatusPagamento status,
+            @Param("filtrarQ") boolean filtrarQ,
             @Param("q") String q,
             Pageable pageable
     );

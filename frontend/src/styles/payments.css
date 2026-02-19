@@ -125,6 +125,11 @@
   box-shadow: none;
 }
 
+.topbar-action-auth {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .filters {
   display: grid;
   grid-template-columns: repeat(4, minmax(170px, 1fr));
@@ -380,6 +385,25 @@
 .card-value {
   font-size: 14px;
   color: var(--ink-900);
+}
+
+.card-notes {
+  padding-top: 16px;
+  border-top: 1px solid rgba(8, 42, 70, 0.08);
+  display: grid;
+  gap: 12px;
+}
+
+.card-field-full {
+  grid-column: 1 / -1;
+}
+
+.card-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(8, 42, 70, 0.08);
+  margin-top: 14px;
 }
 
 .card-hint {

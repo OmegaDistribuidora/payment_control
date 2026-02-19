@@ -8,7 +8,7 @@ export function listarReferencias(auth) {
   return apiRequest('/api/referencias/todas', { auth })
 }
 
-const CACHE_KEY = 'payment_control.referencias'
+const CACHE_KEY = 'payment_control.referencias.v2'
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6
 
 export function loadCachedReferencias() {

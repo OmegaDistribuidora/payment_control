@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildCreatePayload,
   buildUpdatePayload,
@@ -80,7 +80,7 @@ export function usePagamentosController() {
     const username = credentials?.username?.trim()
     const password = credentials?.password
     if (!username || !password) {
-      showError('Informe usuário e senha.')
+      showError('Informe usuÃ¡rio e senha.')
       return
     }
     const cleaned = { username, password }
@@ -167,7 +167,7 @@ export function usePagamentosController() {
       if (err?.name === 'AbortError') return
       if (err.status === 401) {
         setAuthModalOpen(true)
-        showError('Credenciais inválidas.')
+        showError('Credenciais invÃ¡lidas.')
       } else {
         showError(err.message || 'Erro ao carregar pagamentos.')
       }
@@ -194,7 +194,7 @@ export function usePagamentosController() {
         colaboradores: bundle?.colaboradores || [],
       })
     } catch (err) {
-      showError(err.message || 'Erro ao carregar referências.')
+      showError(err.message || 'Erro ao carregar referÃªncias.')
     }
   }
 
@@ -224,7 +224,7 @@ export function usePagamentosController() {
   }, [auth])
 
   const applyFilters = async () => {
-    await fetchPagamentos({ pageNumber: 0 })
+    await fetchPagamentos({ pageNumber: 0, filtersOverride: { ...filters } })
   }
 
   const clearFilters = () => {
@@ -250,6 +250,12 @@ export function usePagamentosController() {
       end = new Date(today.getFullYear(), today.getMonth() + 1, 0)
     }
 
+    if (range === 'ultimos30') {
+      start = new Date(today)
+      start.setDate(today.getDate() - 29)
+      end = new Date(today)
+    }
+
     const nextFilters = {
       ...filters,
       de: toInputDate(start),
@@ -268,12 +274,13 @@ export function usePagamentosController() {
     setError('')
   }
 
-  const openEditModal = async () => {
-    if (!selectedPagamento) {
+  const openEditModal = async (pagamentoOverride) => {
+    const pagamento = pagamentoOverride || selectedPagamento
+    if (!pagamento) {
       showError('Selecione um lançamento para editar.')
       return
     }
-    if (selectedPagamento.status === 'PAGO') {
+    if (pagamento.status === 'PAGO') {
       showError('Pagamento pago não pode ser editado.')
       return
     }
@@ -283,7 +290,8 @@ export function usePagamentosController() {
     }
     setLoading(true)
     try {
-      const detalhes = await buscarPagamento(auth, selectedPagamento.id)
+      setSelectedId(pagamento.id)
+      const detalhes = await buscarPagamento(auth, pagamento.id)
       setModal({ open: true, mode: 'edit' })
       const mapped = mapApiToForm(detalhes)
       setForm(mapped)
@@ -312,7 +320,7 @@ export function usePagamentosController() {
       return
     }
     if (!selectedPagamento) {
-      showError('Selecione um lançamento para ver o histórico.')
+      showError('Selecione um lanÃ§amento para ver o histÃ³rico.')
       return
     }
 
@@ -326,9 +334,9 @@ export function usePagamentosController() {
       if (err.status === 401) {
         setAuthModalOpen(true)
         setHistoryModalOpen(false)
-        showError('Credenciais inválidas.')
+        showError('Credenciais invÃ¡lidas.')
       } else {
-        setHistoryError(err.message || 'Erro ao carregar histórico.')
+        setHistoryError(err.message || 'Erro ao carregar histÃ³rico.')
       }
     } finally {
       setHistoryLoading(false)
@@ -344,6 +352,9 @@ export function usePagamentosController() {
   const updateForm = (key, value) => {
     setForm((prev) => {
       const next = { ...prev, [key]: value }
+      if (key === 'setor') {
+        next.despesa = ''
+      }
       if (key === 'dotacao') {
         next.rateios = []
         next.empresaFornecedor = ''
@@ -367,11 +378,11 @@ export function usePagamentosController() {
       !form.dotacao ||
       !form.setorPagamento
     ) {
-      showError('Preencha os campos obrigatórios.')
+      showError('Preencha os campos obrigatÃ³rios.')
       return false
     }
     if (form.dtVencimento < form.dtPagamento) {
-      showError('Vencimento não pode ser anterior ao pagamento.')
+      showError('Vencimento nÃ£o pode ser anterior ao pagamento.')
       return false
     }
     const dotacao = form.dotacao?.toLowerCase()
@@ -390,7 +401,7 @@ export function usePagamentosController() {
       return false
     }
     if (exigeEmpresaFornecedor && !form.empresaFornecedor && rateioSum === 0) {
-      showError('Informe empresa/fornecedor ou distribua o rateio.')
+      showError('Distribua o rateio para empresa/fornecedor.')
       return false
     }
     return true
@@ -424,7 +435,7 @@ export function usePagamentosController() {
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
-        showError('Credenciais inválidas.')
+        showError('Credenciais invÃ¡lidas.')
       } else {
         showError(err.message || 'Erro ao salvar pagamento.')
       }
@@ -433,23 +444,24 @@ export function usePagamentosController() {
     }
   }
 
-  const removePagamento = async () => {
+  const removePagamento = async (pagamentoOverride) => {
+    const pagamento = pagamentoOverride || selectedPagamento
     if (!auth) {
       setAuthModalOpen(true)
       return
     }
-    if (!selectedPagamento) {
+    if (!pagamento) {
       showError('Selecione um lançamento para excluir.')
       return
     }
-    if (selectedPagamento.status === 'PAGO') {
+    if (pagamento.status === 'PAGO') {
       showError('Pagamento pago não pode ser excluído.')
       return
     }
 
     setLoading(true)
     try {
-      await deletarPagamento(auth, selectedPagamento.id)
+      await deletarPagamento(auth, pagamento.id)
       setSelectedId(null)
       setModal({ open: false, mode: modal.mode })
       setPageCache({})
@@ -570,3 +582,4 @@ function resolveColaboradorFromAuth(auth, references) {
   })
   return match?.nome || ''
 }
+

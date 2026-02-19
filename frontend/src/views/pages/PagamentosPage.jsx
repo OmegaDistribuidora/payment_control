@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+﻿import { useCallback } from 'react'
 import { usePagamentosController } from '../../controllers/pagamentosController.js'
 import FiltersBar from '../components/FiltersBar.jsx'
 import FiltersPanel from '../components/FiltersPanel.jsx'
@@ -13,9 +13,35 @@ import '../../styles/payments.css'
 function PagamentosPage() {
   const controller = usePagamentosController()
   const today = new Date()
+
   const handleSelect = useCallback(
     (id) => controller.setSelectedId(controller.selectedId === id ? null : id),
     [controller.selectedId, controller.setSelectedId]
+  )
+
+  const handleAuthAction = useCallback(() => {
+    if (controller.auth) {
+      controller.handleAuthClear()
+      return
+    }
+    controller.setAuthModalOpen(true)
+  }, [controller.auth, controller.handleAuthClear, controller.setAuthModalOpen])
+
+  const handleEditRow = useCallback(
+    async (row) => {
+      await controller.openEditModal(row)
+    },
+    [controller.openEditModal]
+  )
+
+  const handleDeleteRow = useCallback(
+    async (row) => {
+      if (!row) return
+      const confirmed = window.confirm('Confirma a exclusao deste lancamento?')
+      if (!confirmed) return
+      await controller.removePagamento(row)
+    },
+    [controller.removePagamento]
   )
 
   return (
@@ -24,12 +50,12 @@ function PagamentosPage() {
         currentDate={formatDate(today)}
         currentMonth={formatMonth(today)}
         onCreate={controller.openCreateModal}
-        onEdit={controller.openEditModal}
         onHistory={controller.openHistoryModal}
         onToggleFilters={controller.toggleFilters}
-        onReload={() => controller.fetchPagamentos({ pageNumber: controller.pageInfo.number })}
-        disableEdit={!controller.selectedId || controller.selectedPagamento?.status === 'PAGO'}
+        onReload={() => controller.fetchPagamentos({ pageNumber: controller.pageInfo.number, skipCache: true })}
         disableHistory={!controller.selectedId}
+        isAuthenticated={Boolean(controller.auth)}
+        onAuthAction={handleAuthAction}
         loading={controller.loading}
       />
       <FiltersBar
@@ -45,7 +71,6 @@ function PagamentosPage() {
         onChange={controller.updateFilters}
         onApply={controller.applyFilters}
         onClear={controller.clearFilters}
-        onAuthReset={controller.handleAuthClear}
         loading={controller.loading}
       />
       {controller.error ? <div className="page-error">{controller.error}</div> : null}
@@ -55,6 +80,8 @@ function PagamentosPage() {
         selectedId={controller.selectedId}
         loading={controller.loading}
         onSelect={handleSelect}
+        onEdit={handleEditRow}
+        onDelete={handleDeleteRow}
       />
       <div className="sheet-footer">
         <div>
@@ -72,7 +99,7 @@ function PagamentosPage() {
             Anterior
           </button>
           <span>
-            Página {controller.pageInfo.number + 1} de {controller.pageInfo.totalPages || 1}
+            Pagina {controller.pageInfo.number + 1} de {controller.pageInfo.totalPages || 1}
           </span>
           <button
             className="modal-action ghost"
@@ -80,7 +107,7 @@ function PagamentosPage() {
             onClick={controller.goNextPage}
             disabled={!controller.canPaginateNext || controller.loading}
           >
-            Próxima
+            Proxima
           </button>
         </div>
       </div>

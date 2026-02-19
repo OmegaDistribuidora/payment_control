@@ -1,4 +1,4 @@
-export const emptyRowsCount = 10
+﻿export const emptyRowsCount = 10
 
 export const statusOptions = ['RASCUNHO', 'LANCADO', 'PAGO', 'CANCELADO']
 
@@ -30,7 +30,7 @@ export const defaultForm = {
 }
 
 export const sheetColumns = [
-  { key: 'codVld', label: 'Núm. Lanç.', align: 'center', value: (p) => p.codVld ?? '' },
+  { key: 'codVld', label: 'Num. Lanc.', align: 'center', value: (p) => p.codVld ?? '' },
   {
     key: 'colaborador',
     label: 'Colaborador',
@@ -43,15 +43,15 @@ export const sheetColumns = [
   { key: 'setor', label: 'Setor', align: 'left', value: (p) => p.setor ?? '' },
   { key: 'despesa', label: 'Despesa', align: 'left', value: (p) => p.despesa ?? '' },
   { key: 'setorPagamento', label: 'Quem?', align: 'center', value: (p) => p.setorPagamento ?? '' },
-  { key: 'dotacao', label: 'Dotação', align: 'left', value: (p) => p.dotacao ?? '' },
+  { key: 'dotacao', label: 'Dotacao', align: 'left', value: (p) => p.dotacao ?? '' },
   {
     key: 'empresaFornecedor',
     label: 'Empresa/Fornecedor',
     align: 'left',
     value: (p) => p.empresaFornecedor ?? '',
   },
-  { key: 'valor', label: 'Valor do lançamento', align: 'right', value: (p) => formatCurrency(p.valorTotal) },
-  { key: 'descricao', label: 'Descrição', align: 'left', value: (p) => p.descricao ?? '' },
+  { key: 'valor', label: 'Valor do lancamento', align: 'right', value: (p) => formatCurrency(p.valorTotal) },
+  { key: 'descricao', label: 'Descricao', align: 'left', value: (p) => p.descricao ?? '' },
 ]
 
 export const novoPagamentoFields = [
@@ -62,13 +62,7 @@ export const novoPagamentoFields = [
   { key: 'setor', label: 'Setor', type: 'select', placeholder: 'Selecione...', required: true },
   { key: 'despesa', label: 'Despesa', type: 'select', placeholder: 'Selecione...', required: true },
   { key: 'valorTotal', label: 'Valor Total', type: 'text', placeholder: '0,00', required: true },
-  { key: 'dotacao', label: 'Dotação', type: 'select', placeholder: 'Selecione...', required: true },
-  {
-    key: 'empresaFornecedor',
-    label: 'Empresa/Fornecedor',
-    type: 'select',
-    placeholder: 'Selecione...',
-  },
+  { key: 'dotacao', label: 'Dotacao', type: 'select', placeholder: 'Selecione...', required: true },
   {
     key: 'setorPagamento',
     label: 'Quem?',
@@ -78,7 +72,7 @@ export const novoPagamentoFields = [
   },
   {
     key: 'descricao',
-    label: 'Descrição do Pagamento',
+    label: 'Descricao do Pagamento',
     type: 'textarea',
     placeholder: '',
   },
@@ -132,7 +126,7 @@ export function formatStatusLabel(status) {
   if (!status) return ''
   const map = {
     RASCUNHO: 'Rascunho',
-    LANCADO: 'Lançado',
+    LANCADO: 'Lancado',
     PAGO: 'Pago',
     CANCELADO: 'Cancelado',
   }
