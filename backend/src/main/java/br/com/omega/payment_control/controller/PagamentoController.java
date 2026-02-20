@@ -15,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
@@ -57,6 +58,30 @@ public class PagamentoController {
                 q,
                 pageable
         );
+    }
+
+    @GetMapping("/meus/total")
+    public Map<String, BigDecimal> somarMeus(
+            Authentication auth,
+            @RequestParam(required = false) LocalDate de,
+            @RequestParam(required = false) LocalDate ate,
+            @RequestParam(required = false) String sede,
+            @RequestParam(required = false) String setor,
+            @RequestParam(required = false) String despesa,
+            @RequestParam(required = false) String dotacao,
+            @RequestParam(required = false) StatusPagamento status,
+            @RequestParam(required = false, name = "q") String q
+    ) {
+        BigDecimal total = service.somarMeusComFiltros(
+                auth.getName(),
+                de, ate,
+                sede, setor, despesa, dotacao,
+                status,
+                q
+        );
+        Map<String, BigDecimal> body = new HashMap<>();
+        body.put("total", total);
+        return body;
     }
 
     @GetMapping("/{id}")

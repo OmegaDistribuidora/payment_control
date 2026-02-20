@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
@@ -148,6 +149,57 @@ public class PagamentoService {
                         pageable
                 )
                 .map(p -> toResponse(p, colaboradorMap, false));
+    }
+
+    @Transactional(readOnly = true)
+    public BigDecimal somarMeusComFiltros(
+            String criadoPor,
+            LocalDate de,
+            LocalDate ate,
+            String sede,
+            String setor,
+            String despesa,
+            String dotacao,
+            StatusPagamento status,
+            String q
+    ) {
+        sede = normEq(sede);
+        setor = normEq(setor);
+        despesa = normEq(despesa);
+        dotacao = normEq(dotacao);
+        q = normLike(q);
+
+        boolean privilegiado = isPrivileged();
+        boolean filtrarDe = de != null;
+        boolean filtrarAte = ate != null;
+        boolean filtrarSede = sede != null;
+        boolean filtrarSetor = setor != null;
+        boolean filtrarDespesa = despesa != null;
+        boolean filtrarDotacao = dotacao != null;
+        boolean filtrarStatus = status != null;
+        boolean filtrarQ = q != null;
+
+        LocalDate deParam = filtrarDe ? de : LocalDate.of(1970, 1, 1);
+        LocalDate ateParam = filtrarAte ? ate : LocalDate.of(2999, 12, 31);
+        String sedeParam = filtrarSede ? sede : "";
+        String setorParam = filtrarSetor ? setor : "";
+        String despesaParam = filtrarDespesa ? despesa : "";
+        String dotacaoParam = filtrarDotacao ? dotacao : "";
+        StatusPagamento statusParam = filtrarStatus ? status : StatusPagamento.LANCADO;
+        String qParam = filtrarQ ? q : "%";
+
+        return repo.somarMeusComFiltros(
+                criadoPor,
+                privilegiado,
+                filtrarDe, deParam,
+                filtrarAte, ateParam,
+                filtrarSede, sedeParam,
+                filtrarSetor, setorParam,
+                filtrarDespesa, despesaParam,
+                filtrarDotacao, dotacaoParam,
+                filtrarStatus, statusParam,
+                filtrarQ, qParam
+        );
     }
 
     @Transactional(readOnly = true)

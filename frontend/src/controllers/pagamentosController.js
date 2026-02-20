@@ -17,6 +17,7 @@ import {
   editarPagamento,
   listarHistorico,
   listarPagamentos,
+  somarPagamentos,
 } from '../services/pagamentosService.js'
 import {
   listarReferencias,
@@ -62,18 +63,11 @@ export function usePagamentosController() {
   const [historyError, setHistoryError] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [totalValue, setTotalValue] = useState(0)
   const [pageCache, setPageCache] = useState({})
   const [prefetchCache, setPrefetchCache] = useState({})
   const fetchAbortRef = useRef(null)
   const requestIdRef = useRef(0)
-
-  const totalValue = useMemo(() => {
-    return pagamentos.reduce((sum, pagamento) => {
-      const valor =
-        typeof pagamento.valorTotal === 'number' ? pagamento.valorTotal : parseCurrency(pagamento.valorTotal)
-      return sum + (valor || 0)
-    }, 0)
-  }, [pagamentos])
 
   const selectedPagamento = useMemo(() => {
     if (!selectedId) return null
@@ -168,6 +162,9 @@ export function usePagamentosController() {
         size: data.size ?? pageInfo.size,
         totalPages: data.totalPages ?? 0,
       })
+      const totalResponse = await somarPagamentos(authData, activeFilters, controller.signal)
+      if (requestId !== requestIdRef.current) return
+      setTotalValue(parseCurrency(totalResponse?.total))
     } catch (err) {
       if (err?.name === 'AbortError') return
       if (err.status === 401) {
@@ -301,6 +298,7 @@ export function usePagamentosController() {
     setAuth(null)
     setAuthModalOpen(true)
     setSetorModalOpen(false)
+    setTotalValue(0)
     setPageCache({})
     setPrefetchCache({})
     setSpreadsheetRows([])

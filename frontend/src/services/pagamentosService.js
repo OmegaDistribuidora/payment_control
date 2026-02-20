@@ -24,6 +24,11 @@ export function listarPagamentos(auth, filters, page, signal) {
   return apiRequest(`/api/pagamentos/meus${query}`, { auth, signal })
 }
 
+export function somarPagamentos(auth, filters, signal) {
+  const query = buildQueryParams(filters)
+  return apiRequest(`/api/pagamentos/meus/total${query}`, { auth, signal })
+}
+
 export function criarPagamento(auth, payload) {
   return apiRequest('/api/pagamentos', { method: 'POST', auth, body: payload })
 }
