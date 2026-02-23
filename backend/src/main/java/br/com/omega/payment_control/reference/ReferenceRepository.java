@@ -195,6 +195,15 @@ public class ReferenceRepository {
         );
     }
 
+    public void addSetorDespesa(Integer setorCodigo, Integer despesaCodigo) {
+        ensureSetorDespesasTable();
+        jdbc.update(
+                "insert into ref_setor_despesa (setor_codigo, despesa_codigo) values (?, ?) on conflict do nothing",
+                setorCodigo,
+                despesaCodigo
+        );
+    }
+
     public Integer findCodigoColaboradorByLogin(String login) {
         if (login == null || login.isBlank()) return null;
         String sql = """

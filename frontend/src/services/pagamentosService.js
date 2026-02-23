@@ -9,7 +9,6 @@ function buildQueryParams(filters, page) {
   if (filters?.setor) params.set('setor', filters.setor)
   if (filters?.despesa) params.set('despesa', filters.despesa)
   if (filters?.dotacao) params.set('dotacao', filters.dotacao)
-  if (filters?.status) params.set('status', filters.status)
   if (filters?.q) params.set('q', filters.q)
 
   if (page?.number !== undefined) params.set('page', page.number)
@@ -35,14 +34,6 @@ export function criarPagamento(auth, payload) {
 
 export function editarPagamento(auth, id, payload) {
   return apiRequest(`/api/pagamentos/${id}`, { method: 'PUT', auth, body: payload })
-}
-
-export function alterarStatus(auth, id, status) {
-  return apiRequest(`/api/pagamentos/${id}/status`, {
-    method: 'PATCH',
-    auth,
-    body: { status },
-  })
 }
 
 export function listarHistorico(auth, id) {

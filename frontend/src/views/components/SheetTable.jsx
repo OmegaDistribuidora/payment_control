@@ -1,10 +1,10 @@
 import { memo } from 'react'
-import { formatDate, formatStatusLabel, getColumnValue, sheetColumns } from '../../models/pagamentoModel.js'
+import { formatDate, getColumnValue, sheetColumns } from '../../models/pagamentoModel.js'
 
 const HEADER_KEYS = new Set(['codVld', 'valor'])
 const EXTRA_KEYS = new Set(['empresaFornecedor', 'descricao', 'criadoPor'])
 
-function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, onMarkPaid, loading }) {
+function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, loading }) {
   const hasRows = rows && rows.length > 0
   const showSkeleton = loading && !hasRows
   const valorColumn = sheetColumns.find((column) => column.key === 'valor')
@@ -41,12 +41,10 @@ function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, onMarkPaid, 
             const despesa = getColumnValue(row, { key: 'despesa' })
             const sede = getColumnValue(row, { key: 'sede' })
             const vencimento = formatDate(row.dtVencimento)
-            const lancamento = formatDate(row.dtPagamento)
             const quem = getColumnValue(row, { key: 'setorPagamento' })
             const empresaFornecedor = getColumnValue(row, { key: 'empresaFornecedor' }) || '-'
             const descricao = getColumnValue(row, { key: 'descricao' }) || '-'
             const criadoPor = getColumnValue(row, { key: 'criadoPor' }) || '-'
-            const statusPago = row.status === 'PAGO'
 
             return (
               <article
@@ -59,11 +57,6 @@ function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, onMarkPaid, 
                     <div className="card-title">Lancamento {row.codVld || '-'}</div>
                   </div>
                   <div className="card-meta">
-                    {row.status ? (
-                      <span className={`status-pill status-${row.status.toLowerCase()}`}>
-                        {formatStatusLabel(row.status)}
-                      </span>
-                    ) : null}
                     <div className="card-amount">{valor}</div>
                   </div>
                 </header>
@@ -100,20 +93,9 @@ function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, onMarkPaid, 
                     </div>
                     <div className="card-actions">
                       <button
-                        className="modal-action ghost"
-                        type="button"
-                        disabled={loading || statusPago}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onMarkPaid?.(row)
-                        }}
-                      >
-                        Marcar como Pago
-                      </button>
-                      <button
                         className="modal-action primary"
                         type="button"
-                        disabled={loading || statusPago}
+                        disabled={loading}
                         onClick={(event) => {
                           event.stopPropagation()
                           onEdit?.(row)
@@ -124,7 +106,7 @@ function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, onMarkPaid, 
                       <button
                         className="modal-action danger"
                         type="button"
-                        disabled={loading || statusPago}
+                        disabled={loading}
                         onClick={(event) => {
                           event.stopPropagation()
                           onDelete?.(row)
@@ -140,7 +122,6 @@ function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, onMarkPaid, 
                     <div className="card-secondary">
                       {[
                         sede,
-                        lancamento ? `Lanc.: ${lancamento}` : '',
                         vencimento ? `Venc.: ${vencimento}` : '',
                         quem,
                       ]

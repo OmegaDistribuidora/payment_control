@@ -12,6 +12,10 @@ export function salvarSetorConfig(auth, payload) {
   return apiRequest('/api/referencias/setores/config', { method: 'POST', auth, body: payload })
 }
 
+export function salvarDespesaConfig(auth, payload) {
+  return apiRequest('/api/referencias/despesas/config', { method: 'POST', auth, body: payload })
+}
+
 const CACHE_KEY = 'payment_control.referencias.v2'
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6
 

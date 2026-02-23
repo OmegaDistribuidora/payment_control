@@ -4,7 +4,6 @@ import br.com.omega.payment_control.dto.PagamentoCreateRequest;
 import br.com.omega.payment_control.dto.PagamentoHistoricoResponse;
 import br.com.omega.payment_control.dto.PagamentoRateioItem;
 import br.com.omega.payment_control.dto.PagamentoResponse;
-import br.com.omega.payment_control.dto.PagamentoStatusUpdateRequest;
 import br.com.omega.payment_control.dto.PagamentoUpdateRequest;
 import br.com.omega.payment_control.entity.Pagamento;
 import br.com.omega.payment_control.entity.PagamentoHistorico;
@@ -26,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.HashMap;
@@ -43,6 +43,7 @@ public class PagamentoService {
     private final PagamentoHistoricoRepository historicoRepository;
     private final ObjectMapper objectMapper;
     private static final int MAX_EMPRESA_FORNECEDOR = 255;
+    private static final ZoneId FORTALEZA_ZONE = ZoneId.of("America/Fortaleza");
 
     public PagamentoService(PagamentoRepository repo,
                             ReferenceRepository referenceRepository,
@@ -86,7 +87,7 @@ public class PagamentoService {
     }
 
     private static String buildCodVld(Long codigo, LocalDate data, Integer codColab, Integer codSede, Integer codSetor) {
-        LocalDate baseDate = data != null ? data : LocalDate.now();
+        LocalDate baseDate = data != null ? data : LocalDate.now(FORTALEZA_ZONE);
         String mm = String.format(Locale.ROOT, "%02d", baseDate.getMonthValue());
         String yy = String.format(Locale.ROOT, "%02d", baseDate.getYear() % 100);
         String colab = codColab == null ? "0" : String.valueOf(codColab);
@@ -104,7 +105,6 @@ public class PagamentoService {
             String setor,
             String despesa,
             String dotacao,
-            StatusPagamento status,
             String q,
             Pageable pageable
     ) {
@@ -122,7 +122,6 @@ public class PagamentoService {
         boolean filtrarSetor = setor != null;
         boolean filtrarDespesa = despesa != null;
         boolean filtrarDotacao = dotacao != null;
-        boolean filtrarStatus = status != null;
         boolean filtrarQ = q != null;
 
         LocalDate deParam = filtrarDe ? de : LocalDate.of(1970, 1, 1);
@@ -131,7 +130,6 @@ public class PagamentoService {
         String setorParam = filtrarSetor ? setor : "";
         String despesaParam = filtrarDespesa ? despesa : "";
         String dotacaoParam = filtrarDotacao ? dotacao : "";
-        StatusPagamento statusParam = filtrarStatus ? status : StatusPagamento.LANCADO;
         String qParam = filtrarQ ? q : "%";
 
         Map<String, String> colaboradorMap = buildColaboradorMap();
@@ -144,7 +142,6 @@ public class PagamentoService {
                         filtrarSetor, setorParam,
                         filtrarDespesa, despesaParam,
                         filtrarDotacao, dotacaoParam,
-                        filtrarStatus, statusParam,
                         filtrarQ, qParam,
                         pageable
                 )
@@ -160,7 +157,6 @@ public class PagamentoService {
             String setor,
             String despesa,
             String dotacao,
-            StatusPagamento status,
             String q
     ) {
         sede = normEq(sede);
@@ -176,7 +172,6 @@ public class PagamentoService {
         boolean filtrarSetor = setor != null;
         boolean filtrarDespesa = despesa != null;
         boolean filtrarDotacao = dotacao != null;
-        boolean filtrarStatus = status != null;
         boolean filtrarQ = q != null;
 
         LocalDate deParam = filtrarDe ? de : LocalDate.of(1970, 1, 1);
@@ -185,7 +180,6 @@ public class PagamentoService {
         String setorParam = filtrarSetor ? setor : "";
         String despesaParam = filtrarDespesa ? despesa : "";
         String dotacaoParam = filtrarDotacao ? dotacao : "";
-        StatusPagamento statusParam = filtrarStatus ? status : StatusPagamento.LANCADO;
         String qParam = filtrarQ ? q : "%";
 
         return repo.somarMeusComFiltros(
@@ -197,7 +191,6 @@ public class PagamentoService {
                 filtrarSetor, setorParam,
                 filtrarDespesa, despesaParam,
                 filtrarDotacao, dotacaoParam,
-                filtrarStatus, statusParam,
                 filtrarQ, qParam
         );
     }
@@ -228,13 +221,12 @@ public class PagamentoService {
                 colaborador,
                 setorPagamento
         );
-        LocalDate dtPagamento = req.dtPagamento() != null ? req.dtPagamento() : req.dtVencimento();
-        validateDatas(dtPagamento, req.dtVencimento());
         Pagamento p = new Pagamento();
         p.setCriadoPor(criadoPor);
         p.setPerfilCriador(resolvePerfilCriador());
-        p.setDtPagamento(dtPagamento);
+        p.setDtPagamento(LocalDate.now(FORTALEZA_ZONE));
         p.setDtVencimento(req.dtVencimento());
+        p.setStatus(StatusPagamento.LANCADO);
         p.setSede(sede);
         p.setSedeNorm(normalizeField(sede));
         p.setColaborador(colaborador);
@@ -268,9 +260,6 @@ public class PagamentoService {
     @Transactional
     public PagamentoResponse editar(Long id, PagamentoUpdateRequest req, String criadoPor) {
         Pagamento p = buscarPorPermissao(id, criadoPor);
-        if (p.getStatus() == StatusPagamento.PAGO && !isPrivileged()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Pagamento pago não pode ser editado.");
-        }
         String sede = trimToNull(req.sede());
         String colaborador = trimToNull(req.colaborador());
         String setor = trimToNull(req.setor());
@@ -289,13 +278,10 @@ public class PagamentoService {
                 colaborador,
                 setorPagamento
         );
-        LocalDate dtPagamento = req.dtPagamento() != null ? req.dtPagamento() : req.dtVencimento();
-        validateDatas(dtPagamento, req.dtVencimento());
-
         Pagamento before = copySnapshot(p);
 
-        p.setDtPagamento(dtPagamento);
         p.setDtVencimento(req.dtVencimento());
+        p.setStatus(StatusPagamento.LANCADO);
         p.setSede(sede);
         p.setSedeNorm(normalizeField(sede));
         p.setColaborador(colaborador);
@@ -321,24 +307,8 @@ public class PagamentoService {
     @Transactional
     public void deletarMeu(Long id, String criadoPor) {
         Pagamento p = buscarPorPermissao(id, criadoPor);
-        if (p.getStatus() == StatusPagamento.PAGO && !isPrivileged()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Pagamento pago não pode ser excluído.");
-        }
         logHistorico(p.getId(), "EXCLUIDO", buildSnapshot(p));
         repo.delete(p);
-    }
-
-    @Transactional
-    public PagamentoResponse alterarStatus(Long id, PagamentoStatusUpdateRequest req, String criadoPor) {
-        Pagamento p = buscarPorPermissao(id, criadoPor);
-        StatusPagamento anterior = p.getStatus();
-        p.setStatus(req.status());
-        Pagamento saved = repo.save(p);
-        Map<String, Object> detalhes = new LinkedHashMap<>();
-        detalhes.put("statusAnterior", anterior);
-        detalhes.put("statusNovo", saved.getStatus());
-        logHistorico(saved.getId(), "STATUS_ALTERADO", detalhes);
-        return toResponse(saved, buildColaboradorMap(), true);
     }
 
     @Transactional(readOnly = true)
@@ -431,13 +401,6 @@ public class PagamentoService {
                 .orElse("USUARIO");
     }
 
-    private void validateDatas(LocalDate pagamento, LocalDate vencimento) {
-        if (pagamento == null || vencimento == null) return;
-        if (vencimento.isBefore(pagamento)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vencimento não pode ser anterior ao pagamento.");
-        }
-    }
-
     private Map<String, String> buildColaboradorMap() {
         List<ColaboradorItem> colaboradores = referenceRepository.listColaboradores();
         Map<String, String> map = new HashMap<>();
@@ -480,7 +443,6 @@ public class PagamentoService {
 
     private Map<String, Object> buildSnapshot(Pagamento p) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("dtPagamento", p.getDtPagamento());
         snapshot.put("dtVencimento", p.getDtVencimento());
         snapshot.put("sede", p.getSede());
         snapshot.put("colaborador", p.getColaborador());
@@ -492,7 +454,6 @@ public class PagamentoService {
         snapshot.put("rateios", mapRateios(p.getRateios()));
         snapshot.put("valorTotal", p.getValorTotal());
         snapshot.put("descricao", p.getDescricao());
-        snapshot.put("status", p.getStatus());
         return snapshot;
     }
 
@@ -520,7 +481,6 @@ public class PagamentoService {
 
     private Map<String, Object> buildDiff(Pagamento before, Pagamento after) {
         Map<String, Object> diff = new LinkedHashMap<>();
-        addDiff(diff, "dtPagamento", before.getDtPagamento(), after.getDtPagamento());
         addDiff(diff, "dtVencimento", before.getDtVencimento(), after.getDtVencimento());
         addDiff(diff, "sede", before.getSede(), after.getSede());
         addDiff(diff, "colaborador", before.getColaborador(), after.getColaborador());

@@ -2,6 +2,7 @@ package br.com.omega.payment_control.reference;
 
 import br.com.omega.payment_control.reference.ReferenceDtos.ColaboradorItem;
 import br.com.omega.payment_control.reference.ReferenceDtos.DespesaItem;
+import br.com.omega.payment_control.reference.ReferenceDtos.DespesaConfigRequest;
 import br.com.omega.payment_control.reference.ReferenceDtos.ReferenceBundle;
 import br.com.omega.payment_control.reference.ReferenceDtos.ReferenceItem;
 import br.com.omega.payment_control.reference.ReferenceDtos.SetorConfigRequest;
@@ -148,6 +149,48 @@ public class ReferenceService {
         return listarTudo();
     }
 
+    @Transactional
+    public ReferenceBundle salvarDespesaConfig(DespesaConfigRequest request) {
+        if (!canManageDespesas()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acao permitida somente para admin e RH.");
+        }
+
+        String setorNome = trimToNull(request == null ? null : request.setor());
+        if (setorNome == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Setor e obrigatorio.");
+        }
+
+        String despesaNome = trimToNull(request == null ? null : request.despesa());
+        if (despesaNome == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nome da despesa e obrigatorio.");
+        }
+
+        Integer setorCodigo = repository.findCodigoSetorByNome(setorNome);
+        if (setorCodigo == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Setor invalido.");
+        }
+
+        if (repository.existsDespesaByNome(despesaNome)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Despesa ja existe: " + despesaNome + ". Informe uma despesa nova."
+            );
+        }
+
+        Integer codMt = repository.findCodigoDspcentByNome(setorNome);
+        if (codMt == null) {
+            codMt = repository.nextDspcentCodigo();
+            repository.insertDspcent(codMt, setorNome);
+        }
+
+        Integer despesaCodigo = repository.nextDespesaCodigo();
+        repository.insertDespesa(despesaCodigo, despesaNome, codMt);
+        repository.addSetorDespesa(setorCodigo, despesaCodigo);
+
+        clearCache();
+        return listarTudo();
+    }
+
     private ReferenceBundle getCachedBundle() {
         long now = System.currentTimeMillis();
         ReferenceBundle cached = cachedBundle;
@@ -179,6 +222,18 @@ public class ReferenceService {
         }
         return auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_GERENCIA".equals(a.getAuthority()));
+    }
+
+    private boolean canManageDespesas() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return false;
+        }
+        if ("admin".equalsIgnoreCase(auth.getName()) || "rh".equalsIgnoreCase(auth.getName())) {
+            return true;
+        }
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_GERENCIA".equals(a.getAuthority()) || "ROLE_RH".equals(a.getAuthority()));
     }
 
     private static String trimToNull(String value) {

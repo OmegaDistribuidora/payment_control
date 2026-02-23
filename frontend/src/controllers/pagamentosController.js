@@ -10,7 +10,6 @@ import {
 } from '../models/pagamentoModel.js'
 import { clearAuth, loadAuth, saveAuth } from '../models/authModel.js'
 import {
-  alterarStatus,
   buscarPagamento,
   criarPagamento,
   deletarPagamento,
@@ -23,14 +22,57 @@ import {
   listarReferencias,
   listarReferenciasCached,
   saveCachedReferencias,
+  salvarDespesaConfig,
   salvarSetorConfig,
 } from '../services/referenciasService.js'
+
+function buildFiltersForRange(range, currentFilters = defaultFilters) {
+  const today = new Date()
+  let start = today
+  let end = today
+
+  if (range === 'semana') {
+    const day = today.getDay()
+    const diff = day === 0 ? 6 : day - 1
+    start = new Date(today)
+    start.setDate(today.getDate() - diff)
+    end = new Date(start)
+    end.setDate(start.getDate() + 6)
+  } else if (range === 'mes') {
+    start = new Date(today.getFullYear(), today.getMonth(), 1)
+    end = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+  } else if (range === 'mesAnterior') {
+    start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    end = new Date(today.getFullYear(), today.getMonth(), 0)
+  } else if (range === 'anoAtual') {
+    start = new Date(today.getFullYear(), 0, 1)
+    end = new Date(today.getFullYear(), 11, 31)
+  } else if (range === 'anoPassado') {
+    start = new Date(today.getFullYear() - 1, 0, 1)
+    end = new Date(today.getFullYear() - 1, 11, 31)
+  } else if (range === 'ultimos30') {
+    start = new Date(today)
+    start.setDate(today.getDate() - 29)
+    end = new Date(today)
+  }
+
+  if (range === 'personalizado') {
+    return { ...currentFilters }
+  }
+
+  return {
+    ...currentFilters,
+    de: toInputDate(start),
+    ate: toInputDate(end),
+  }
+}
 
 export function usePagamentosController() {
   const [auth, setAuth] = useState(loadAuth())
   const [authModalOpen, setAuthModalOpen] = useState(!auth)
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
-  const [filters, setFilters] = useState(defaultFilters)
+  const [periodPreset, setPeriodPreset] = useState('anoAtual')
+  const [filters, setFilters] = useState(() => buildFiltersForRange('anoAtual', defaultFilters))
   const [pagamentos, setPagamentos] = useState([])
   const [references, setReferences] = useState({
     setores: [],
@@ -55,8 +97,9 @@ export function usePagamentosController() {
   const [modal, setModal] = useState({ open: false, mode: 'create' })
   const [setorModalOpen, setSetorModalOpen] = useState(false)
   const [setorForm, setSetorForm] = useState({ nome: '', despesas: [] })
+  const [despesaModalOpen, setDespesaModalOpen] = useState(false)
+  const [despesaForm, setDespesaForm] = useState({ setor: '', despesa: '' })
   const [form, setForm] = useState(defaultForm)
-  const [originalStatus, setOriginalStatus] = useState(defaultForm.status)
   const [historyModalOpen, setHistoryModalOpen] = useState(false)
   const [historyItems, setHistoryItems] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -96,6 +139,12 @@ export function usePagamentosController() {
     setReferences(next)
     return next
   }
+
+  const username = auth?.username?.toLowerCase()
+  const isAdmin = username === 'admin'
+  const isRh = username === 'rh'
+  const canCreateSetor = isAdmin
+  const canCreateDespesa = isAdmin || isRh
 
   const fetchPagamentos = async ({ pageNumber, authOverride, filtersOverride, skipCache } = {}) => {
     const authData = authOverride || auth
@@ -263,6 +312,7 @@ export function usePagamentosController() {
       return
     }
     const cleaned = { username, password }
+    const loginFilters = buildFiltersForRange('anoAtual', defaultFilters)
     setLoading(true)
     try {
       const bundle = await listarReferencias(cleaned)
@@ -271,13 +321,20 @@ export function usePagamentosController() {
 
       saveAuth(cleaned)
       setAuth(cleaned)
+      setPeriodPreset('anoAtual')
+      setFilters(loginFilters)
       setAuthModalOpen(false)
       setPageCache({})
       setPrefetchCache({})
 
-      await fetchPagamentos({ pageNumber: 0, authOverride: cleaned, skipCache: true })
+      await fetchPagamentos({
+        pageNumber: 0,
+        authOverride: cleaned,
+        filtersOverride: loginFilters,
+        skipCache: true,
+      })
       if (viewMode === 'spreadsheet') {
-        await fetchSpreadsheetRows({ authOverride: cleaned })
+        await fetchSpreadsheetRows({ authOverride: cleaned, filtersOverride: loginFilters })
       }
     } catch (err) {
       clearAuth()
@@ -298,6 +355,9 @@ export function usePagamentosController() {
     setAuth(null)
     setAuthModalOpen(true)
     setSetorModalOpen(false)
+    setDespesaModalOpen(false)
+    setPeriodPreset('anoAtual')
+    setFilters(buildFiltersForRange('anoAtual', defaultFilters))
     setTotalValue(0)
     setPageCache({})
     setPrefetchCache({})
@@ -321,7 +381,8 @@ export function usePagamentosController() {
   }
 
   const clearFilters = async () => {
-    const nextFilters = { ...defaultFilters }
+    const nextFilters = buildFiltersForRange('anoAtual', defaultFilters)
+    setPeriodPreset('anoAtual')
     setFilters(nextFilters)
     await fetchPagamentos({ pageNumber: 0, filtersOverride: nextFilters })
     if (viewMode === 'spreadsheet') {
@@ -330,50 +391,12 @@ export function usePagamentosController() {
   }
 
   const applyQuickFilter = async (range) => {
-    const today = new Date()
-    let start = today
-    let end = today
-
-    if (range === 'semana') {
-      const day = today.getDay()
-      const diff = day === 0 ? 6 : day - 1
-      start = new Date(today)
-      start.setDate(today.getDate() - diff)
-      end = new Date(start)
-      end.setDate(start.getDate() + 6)
+    const nextPreset = range || 'anoAtual'
+    setPeriodPreset(nextPreset)
+    if (nextPreset === 'personalizado') {
+      return
     }
-
-    if (range === 'mes') {
-      start = new Date(today.getFullYear(), today.getMonth(), 1)
-      end = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-    }
-
-    if (range === 'mesAnterior') {
-      start = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-      end = new Date(today.getFullYear(), today.getMonth(), 0)
-    }
-
-    if (range === 'anoAtual') {
-      start = new Date(today.getFullYear(), 0, 1)
-      end = new Date(today.getFullYear(), 11, 31)
-    }
-
-    if (range === 'anoPassado') {
-      start = new Date(today.getFullYear() - 1, 0, 1)
-      end = new Date(today.getFullYear() - 1, 11, 31)
-    }
-
-    if (range === 'ultimos30') {
-      start = new Date(today)
-      start.setDate(today.getDate() - 29)
-      end = new Date(today)
-    }
-
-    const nextFilters = {
-      ...filters,
-      de: toInputDate(start),
-      ate: toInputDate(end),
-    }
+    const nextFilters = buildFiltersForRange(nextPreset, filters)
     await fetchPagamentos({ pageNumber: 0, filtersOverride: nextFilters })
     if (viewMode === 'spreadsheet') {
       await fetchSpreadsheetRows({ filtersOverride: nextFilters })
@@ -393,7 +416,6 @@ export function usePagamentosController() {
   const openCreateModal = () => {
     setModal({ open: true, mode: 'create' })
     setForm({ ...defaultForm, colaborador: '' })
-    setOriginalStatus(defaultForm.status)
     setError('')
   }
 
@@ -413,6 +435,24 @@ export function usePagamentosController() {
 
   const closeSetorModal = () => {
     setSetorModalOpen(false)
+  }
+
+  const openDespesaModal = () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!(isAdmin || isRh)) {
+      showError('Somente admin e RH podem criar despesas.')
+      return
+    }
+    setDespesaForm({ setor: '', despesa: '' })
+    setDespesaModalOpen(true)
+    setError('')
+  }
+
+  const closeDespesaModal = () => {
+    setDespesaModalOpen(false)
   }
 
   const updateSetorNome = (nome) => {
@@ -437,6 +477,14 @@ export function usePagamentosController() {
       ...prev,
       despesas: (prev.despesas || []).filter((item) => item !== despesa),
     }))
+  }
+
+  const updateDespesaSetor = (setor) => {
+    setDespesaForm((prev) => ({ ...prev, setor }))
+  }
+
+  const updateDespesaNome = (despesa) => {
+    setDespesaForm((prev) => ({ ...prev, despesa }))
   }
 
   const saveSetor = async () => {
@@ -481,14 +529,49 @@ export function usePagamentosController() {
     }
   }
 
+  const saveDespesa = async () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!(isAdmin || isRh)) {
+      showError('Somente admin e RH podem criar despesas.')
+      return
+    }
+
+    const setor = despesaForm.setor?.trim()
+    const despesa = despesaForm.despesa?.trim()
+    if (!setor) {
+      showError('Selecione o setor.')
+      return
+    }
+    if (!despesa) {
+      showError('Informe o nome da despesa.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const bundle = await salvarDespesaConfig(auth, { setor, despesa })
+      applyReferenceBundle(bundle)
+      saveCachedReferencias(bundle)
+      setDespesaModalOpen(false)
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        showError(err.message || 'Erro ao salvar despesa.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const openEditModal = async (pagamentoOverride) => {
     const pagamento = pagamentoOverride || selectedPagamento
     if (!pagamento) {
       showError('Selecione um lancamento para editar.')
-      return
-    }
-    if (pagamento.status === 'PAGO') {
-      showError('Pagamento pago nao pode ser editado.')
       return
     }
     if (!auth) {
@@ -502,7 +585,6 @@ export function usePagamentosController() {
       setModal({ open: true, mode: 'edit' })
       const mapped = mapApiToForm(detalhes)
       setForm(mapped)
-      setOriginalStatus(mapped.status)
       setError('')
     } catch (err) {
       if (err.status === 401) {
@@ -571,6 +653,9 @@ export function usePagamentosController() {
   }
 
   const updateFilters = (key, value) => {
+    if (key === 'de' || key === 'ate') {
+      setPeriodPreset('personalizado')
+    }
     setFilters((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -585,10 +670,6 @@ export function usePagamentosController() {
       !form.setorPagamento
     ) {
       showError('Preencha os campos obrigatorios.')
-      return false
-    }
-    if (form.dtPagamento && form.dtVencimento && form.dtVencimento < form.dtPagamento) {
-      showError('Vencimento nao pode ser anterior ao pagamento.')
       return false
     }
     const dotacao = form.dotacao?.toLowerCase()
@@ -632,9 +713,6 @@ export function usePagamentosController() {
       } else if (selectedPagamento) {
         const payload = buildUpdatePayload(form)
         await editarPagamento(auth, selectedPagamento.id, payload)
-        if (form.status && form.status !== originalStatus) {
-          await alterarStatus(auth, selectedPagamento.id, form.status)
-        }
       }
 
       setModal({ open: false, mode: modal.mode })
@@ -663,10 +741,6 @@ export function usePagamentosController() {
       showError('Selecione um lancamento para excluir.')
       return
     }
-    if (pagamento.status === 'PAGO') {
-      showError('Pagamento pago nao pode ser excluido.')
-      return
-    }
 
     setLoading(true)
     try {
@@ -682,39 +756,6 @@ export function usePagamentosController() {
         showError('Credenciais invalidas.')
       } else {
         showError(err.message || 'Erro ao excluir pagamento.')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const marcarComoPago = async (pagamentoOverride) => {
-    const pagamento = pagamentoOverride || selectedPagamento
-    if (!auth) {
-      setAuthModalOpen(true)
-      return
-    }
-    if (!pagamento) {
-      showError('Selecione um lancamento para alterar status.')
-      return
-    }
-    if (pagamento.status === 'PAGO') {
-      showError('Este lancamento ja esta pago.')
-      return
-    }
-
-    setLoading(true)
-    try {
-      await alterarStatus(auth, pagamento.id, 'PAGO')
-      setPageCache({})
-      setPrefetchCache({})
-      await refreshVisibleData(pageInfo.number)
-    } catch (err) {
-      if (err.status === 401) {
-        setAuthModalOpen(true)
-        showError('Credenciais invalidas.')
-      } else {
-        showError(err.message || 'Erro ao atualizar status.')
       }
     } finally {
       setLoading(false)
@@ -766,13 +807,15 @@ export function usePagamentosController() {
     await fetchPagamentos({ pageNumber: prevPage })
   }
 
-  const isAdmin = auth?.username?.toLowerCase() === 'admin'
-
   return {
     auth,
     isAdmin,
+    isRh,
+    canCreateSetor,
+    canCreateDespesa,
     authModalOpen,
     isFiltersOpen,
+    periodPreset,
     filters,
     pagamentos,
     pageInfo,
@@ -784,6 +827,8 @@ export function usePagamentosController() {
     modal,
     setorModalOpen,
     setorForm,
+    despesaModalOpen,
+    despesaForm,
     form,
     historyModalOpen,
     historyItems,
@@ -810,20 +855,24 @@ export function usePagamentosController() {
     toggleFilters,
     openCreateModal,
     openSetorModal,
+    openDespesaModal,
     openEditModal,
     openHistoryModal,
     closeModal,
     closeSetorModal,
+    closeDespesaModal,
     closeHistoryModal,
     updateForm,
     updateFilters,
     updateSetorNome,
     addSetorDespesa,
     removeSetorDespesa,
+    updateDespesaSetor,
+    updateDespesaNome,
     savePagamento,
     saveSetor,
+    saveDespesa,
     removePagamento,
-    marcarComoPago,
     goNextPage,
     goPrevPage,
   }

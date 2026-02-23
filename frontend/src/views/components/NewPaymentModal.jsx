@@ -1,10 +1,9 @@
-﻿import { useMemo } from 'react'
+import { useMemo } from 'react'
 import {
   formatCurrency,
   formatCurrencyInput,
   parseCurrency,
   novoPagamentoFields,
-  statusOptions,
 } from '../../models/pagamentoModel.js'
 
 const DESPESAS_POR_SETOR = {
@@ -254,23 +253,6 @@ function NewPaymentModal({
               </div>
             </div>
           ) : null}
-          {isEdit ? (
-            <div className="modal-field">
-              <label className="modal-label">Status</label>
-              <select
-                className="modal-input"
-                value={form.status}
-                onChange={(event) => onChange('status', event.target.value)}
-                disabled={loading}
-              >
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
           {error ? <div className="modal-error full">{error}</div> : null}
         </div>
 
@@ -368,7 +350,8 @@ function buildDespesaOptions(setorSelecionado, references, despesaAtual) {
 
   const listaDinamica = resolveSetorDespesasDinamicas(setorSelecionado, references?.setorDespesas)
   const setorKey = resolveSetorKey(setorSelecionado)
-  const listaPermitida = listaDinamica.length ? listaDinamica : DESPESAS_POR_SETOR[setorKey] || []
+  const listaBase = DESPESAS_POR_SETOR[setorKey] || []
+  const listaPermitida = mergeUniqueNames(listaBase, listaDinamica)
   const despesasDisponiveis = references?.despesas || []
   const options = []
   const used = new Set()
@@ -425,6 +408,20 @@ function resolveSetorDespesasDinamicas(setorSelecionado, setorDespesas) {
     return []
   }
   return entry[1].filter(Boolean)
+}
+
+function mergeUniqueNames(baseList, extraList) {
+  const result = []
+  const used = new Set()
+  for (const name of [...(baseList || []), ...(extraList || [])]) {
+    const value = String(name || '').trim()
+    if (!value) continue
+    const key = normalizeText(value)
+    if (used.has(key)) continue
+    used.add(key)
+    result.push(value)
+  }
+  return result
 }
 
 function normalizeText(value) {

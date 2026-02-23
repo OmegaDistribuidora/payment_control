@@ -28,4 +28,9 @@ public final class ReferenceDtos {
             String nome,
             List<String> despesas
     ) {}
+
+    public record DespesaConfigRequest(
+            String setor,
+            String despesa
+    ) {}
 }

@@ -1,35 +1,69 @@
-﻿import { statusOptions } from '../../models/pagamentoModel.js'
+const PT_BR_SORTER = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true })
+
+const PERIOD_OPTIONS = [
+  { value: 'hoje', label: 'Hoje' },
+  { value: 'semana', label: 'Semana' },
+  { value: 'mes', label: 'Mes' },
+  { value: 'mesAnterior', label: 'Mes Anterior' },
+  { value: 'anoAtual', label: 'Ano Atual' },
+  { value: 'anoPassado', label: 'Ano Passado' },
+  { value: 'ultimos30', label: 'Ult. 30 dias' },
+  { value: 'personalizado', label: 'Personalizado' },
+]
 
 function FiltersPanel({
   isOpen,
+  periodPreset,
   filters,
   references,
   onChange,
+  onPeriodChange,
   onApply,
   onClear,
   loading,
 }) {
   if (!isOpen) return null
 
+  const despesasOrdenadas = [...(references?.despesas || [])].sort((a, b) =>
+    PT_BR_SORTER.compare(a?.nome || '', b?.nome || '')
+  )
+  const showCustomDateFields = periodPreset === 'personalizado'
+
   return (
     <section className="filters-panel">
       <div className="filters-grid">
         <label className="filter-field">
-          <span>Data inicial</span>
-          <input
-            type="date"
-            value={filters.de}
-            onChange={(event) => onChange('de', event.target.value)}
-          />
+          <span>Periodo</span>
+          <select value={periodPreset} onChange={(event) => onPeriodChange(event.target.value)}>
+            {PERIOD_OPTIONS.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
         </label>
-        <label className="filter-field">
-          <span>Data final</span>
-          <input
-            type="date"
-            value={filters.ate}
-            onChange={(event) => onChange('ate', event.target.value)}
-          />
-        </label>
+
+        {showCustomDateFields ? (
+          <>
+            <label className="filter-field">
+              <span>Data inicial</span>
+              <input
+                type="date"
+                value={filters.de}
+                onChange={(event) => onChange('de', event.target.value)}
+              />
+            </label>
+            <label className="filter-field">
+              <span>Data final</span>
+              <input
+                type="date"
+                value={filters.ate}
+                onChange={(event) => onChange('ate', event.target.value)}
+              />
+            </label>
+          </>
+        ) : null}
+
         <label className="filter-field">
           <span>Sede</span>
           <select value={filters.sede} onChange={(event) => onChange('sede', event.target.value)}>
@@ -56,7 +90,7 @@ function FiltersPanel({
           <span>Despesa</span>
           <select value={filters.despesa} onChange={(event) => onChange('despesa', event.target.value)}>
             <option value="">Todas</option>
-            {(references?.despesas || []).map((item) => (
+            {despesasOrdenadas.map((item) => (
               <option key={`despesa-${item.codigo}`} value={item.nome}>
                 {item.nome} - {item.dspCent}
               </option>
@@ -70,17 +104,6 @@ function FiltersPanel({
             {(references?.dotacoes || []).map((item) => (
               <option key={`dotacao-${item.codigo}`} value={item.nome}>
                 {item.nome}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="filter-field">
-          <span>Status</span>
-          <select value={filters.status} onChange={(event) => onChange('status', event.target.value)}>
-            <option value="">Todos</option>
-            {statusOptions.map((status) => (
-              <option key={status} value={status}>
-                {status}
               </option>
             ))}
           </select>

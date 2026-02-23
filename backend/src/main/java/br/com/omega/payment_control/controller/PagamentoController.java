@@ -3,9 +3,7 @@ package br.com.omega.payment_control.controller;
 import br.com.omega.payment_control.dto.PagamentoCreateRequest;
 import br.com.omega.payment_control.dto.PagamentoHistoricoResponse;
 import br.com.omega.payment_control.dto.PagamentoResponse;
-import br.com.omega.payment_control.dto.PagamentoStatusUpdateRequest;
 import br.com.omega.payment_control.dto.PagamentoUpdateRequest;
-import br.com.omega.payment_control.entity.StatusPagamento;
 import br.com.omega.payment_control.service.PagamentoService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -46,7 +44,6 @@ public class PagamentoController {
             @RequestParam(required = false) String setor,
             @RequestParam(required = false) String despesa,
             @RequestParam(required = false) String dotacao,
-            @RequestParam(required = false) StatusPagamento status,
             @RequestParam(required = false, name = "q") String q,
             Pageable pageable
     ) {
@@ -54,7 +51,6 @@ public class PagamentoController {
                 auth.getName(),
                 de, ate,
                 sede, setor, despesa, dotacao,
-                status,
                 q,
                 pageable
         );
@@ -69,14 +65,12 @@ public class PagamentoController {
             @RequestParam(required = false) String setor,
             @RequestParam(required = false) String despesa,
             @RequestParam(required = false) String dotacao,
-            @RequestParam(required = false) StatusPagamento status,
             @RequestParam(required = false, name = "q") String q
     ) {
         BigDecimal total = service.somarMeusComFiltros(
                 auth.getName(),
                 de, ate,
                 sede, setor, despesa, dotacao,
-                status,
                 q
         );
         Map<String, BigDecimal> body = new HashMap<>();
@@ -100,13 +94,6 @@ public class PagamentoController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deletar(@PathVariable Long id, Authentication auth) {
         service.deletarMeu(id, auth.getName());
-    }
-
-    @PatchMapping("/{id}/status")
-    public PagamentoResponse alterarStatus(@PathVariable Long id,
-                                           @RequestBody @Valid PagamentoStatusUpdateRequest req,
-                                           Authentication auth) {
-        return service.alterarStatus(id, req, auth.getName());
     }
 
     @GetMapping("/{id}/historico")

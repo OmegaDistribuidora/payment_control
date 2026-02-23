@@ -1,15 +1,4 @@
-import { formatStatusLabel, getColumnValue, sheetColumns } from '../../models/pagamentoModel.js'
-
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M9.2 16.6L4.8 12.2l1.4-1.4 3 3 8.6-8.6 1.4 1.4z"
-      />
-    </svg>
-  )
-}
+import { getColumnValue, sheetColumns } from '../../models/pagamentoModel.js'
 
 function EditIcon() {
   return (
@@ -33,7 +22,7 @@ function TrashIcon() {
   )
 }
 
-function SpreadsheetTable({ rows, loading, onMarkPaid, onEdit, onDelete }) {
+function SpreadsheetTable({ rows, loading, onEdit, onDelete }) {
   const hasRows = Array.isArray(rows) && rows.length > 0
 
   return (
@@ -50,42 +39,29 @@ function SpreadsheetTable({ rows, loading, onMarkPaid, onEdit, onDelete }) {
                     {column.label}
                   </th>
                 ))}
-                <th className="spreadsheet-head align-center">Status</th>
                 <th className="spreadsheet-head align-center">Acoes</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => {
-                const pago = row.status === 'PAGO'
                 return (
-                  <tr key={row.id} className={`spreadsheet-row${pago ? ' is-paid' : ''}`}>
+                  <tr key={row.id} className="spreadsheet-row">
                     {sheetColumns.map((column) => {
                       const value = getColumnValue(row, column)
                       return (
                         <td key={`${row.id}-${column.key}`} className={`spreadsheet-cell align-${column.align || 'left'}`}>
                           {value || '-'}
                         </td>
-                      )
-                    })}
-                    <td className="spreadsheet-cell align-center">{formatStatusLabel(row.status) || '-'}</td>
+                        )
+                      })}
                     <td className="spreadsheet-cell align-center">
                       <div className="spreadsheet-actions">
-                        <button
-                          type="button"
-                          className="spreadsheet-icon-btn pay"
-                          title="Marcar como pago"
-                          aria-label="Marcar como pago"
-                          disabled={loading || pago}
-                          onClick={() => onMarkPaid?.(row)}
-                        >
-                          <CheckIcon />
-                        </button>
                         <button
                           type="button"
                           className="spreadsheet-icon-btn edit"
                           title="Editar"
                           aria-label="Editar"
-                          disabled={loading || pago}
+                          disabled={loading}
                           onClick={() => onEdit?.(row)}
                         >
                           <EditIcon />
@@ -95,7 +71,7 @@ function SpreadsheetTable({ rows, loading, onMarkPaid, onEdit, onDelete }) {
                           className="spreadsheet-icon-btn delete"
                           title="Excluir"
                           aria-label="Excluir"
-                          disabled={loading || pago}
+                          disabled={loading}
                           onClick={() => onDelete?.(row)}
                         >
                           <TrashIcon />

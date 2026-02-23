@@ -9,6 +9,7 @@ import SpreadsheetTable from '../components/SpreadsheetTable.jsx'
 import TopBar from '../components/TopBar.jsx'
 import AuthModal from '../components/AuthModal.jsx'
 import SetorConfigModal from '../components/SetorConfigModal.jsx'
+import DespesaConfigModal from '../components/DespesaConfigModal.jsx'
 import { formatDate, formatMonth } from '../../models/pagamentoModel.js'
 import '../../styles/payments.css'
 
@@ -46,16 +47,6 @@ function PagamentosPage() {
     [controller.removePagamento]
   )
 
-  const handleMarkPaid = useCallback(
-    async (row) => {
-      if (!row) return
-      const confirmed = window.confirm('Confirmar alteracao para status Pago?')
-      if (!confirmed) return
-      await controller.marcarComoPago(row)
-    },
-    [controller.marcarComoPago]
-  )
-
   const handleReload = useCallback(async () => {
     if (controller.viewMode === 'spreadsheet') {
       await controller.fetchSpreadsheetRows()
@@ -73,6 +64,7 @@ function PagamentosPage() {
         onHistory={controller.openHistoryModal}
         onToggleFilters={controller.toggleFilters}
         onConfigSetor={controller.openSetorModal}
+        onConfigDespesa={controller.openDespesaModal}
         onToggleView={controller.toggleViewMode}
         viewMode={controller.viewMode}
         onReload={handleReload}
@@ -80,19 +72,21 @@ function PagamentosPage() {
         isAuthenticated={Boolean(controller.auth)}
         onAuthAction={handleAuthAction}
         loading={controller.loading}
-        showSetorButton={controller.isAdmin}
+        showSetorButton={controller.canCreateSetor}
+        showDespesaButton={controller.canCreateDespesa}
       />
       <FiltersBar
         filters={controller.filters}
         userLabel={controller.auth?.username}
         totalValue={controller.totalValue}
-        onQuickFilter={controller.applyQuickFilter}
       />
       <FiltersPanel
         isOpen={controller.isFiltersOpen}
+        periodPreset={controller.periodPreset}
         filters={controller.filters}
         references={controller.references}
         onChange={controller.updateFilters}
+        onPeriodChange={controller.applyQuickFilter}
         onApply={controller.applyFilters}
         onClear={controller.clearFilters}
         loading={controller.loading}
@@ -108,7 +102,6 @@ function PagamentosPage() {
             onSelect={handleSelect}
             onEdit={handleEditRow}
             onDelete={handleDeleteRow}
-            onMarkPaid={handleMarkPaid}
           />
           <div className="sheet-footer">
             <div>
@@ -143,7 +136,6 @@ function PagamentosPage() {
         <SpreadsheetTable
           rows={controller.spreadsheetRows}
           loading={controller.spreadsheetLoading || controller.loading}
-          onMarkPaid={handleMarkPaid}
           onEdit={handleEditRow}
           onDelete={handleDeleteRow}
         />
@@ -182,6 +174,17 @@ function PagamentosPage() {
         onRemoveDespesa={controller.removeSetorDespesa}
         onSave={controller.saveSetor}
         onClose={controller.closeSetorModal}
+      />
+      <DespesaConfigModal
+        isOpen={controller.despesaModalOpen}
+        form={controller.despesaForm}
+        references={controller.references}
+        loading={controller.loading}
+        error={controller.error}
+        onSetorChange={controller.updateDespesaSetor}
+        onDespesaChange={controller.updateDespesaNome}
+        onSave={controller.saveDespesa}
+        onClose={controller.closeDespesaModal}
       />
     </div>
   )

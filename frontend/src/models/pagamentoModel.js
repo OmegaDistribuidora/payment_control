@@ -1,7 +1,5 @@
 ﻿export const emptyRowsCount = 10
 
-export const statusOptions = ['RASCUNHO', 'LANCADO', 'PAGO', 'CANCELADO']
-
 export const defaultFilters = {
   de: '',
   ate: '',
@@ -9,12 +7,10 @@ export const defaultFilters = {
   setor: '',
   despesa: '',
   dotacao: '',
-  status: '',
   q: '',
 }
 
 export const defaultForm = {
-  dtPagamento: '',
   dtVencimento: '',
   sede: '',
   colaborador: '',
@@ -26,7 +22,6 @@ export const defaultForm = {
   valorTotal: '',
   descricao: '',
   rateios: [],
-  status: 'LANCADO',
 }
 
 export const sheetColumns = [
@@ -55,7 +50,6 @@ export const sheetColumns = [
 ]
 
 export const novoPagamentoFields = [
-  { key: 'dtPagamento', label: 'Data de Pagamento', type: 'date', required: false },
   { key: 'dtVencimento', label: 'Data de Vencimento', type: 'date', required: true },
   { key: 'sede', label: 'Sede', type: 'select', placeholder: 'Selecione...', required: true },
   { key: 'colaborador', label: 'Colaborador', type: 'select', placeholder: 'Selecione...', required: true },
@@ -176,7 +170,6 @@ export function toInputDate(value) {
 
 export function mapApiToForm(pagamento) {
   return {
-    dtPagamento: toInputDate(pagamento.dtPagamento),
     dtVencimento: toInputDate(pagamento.dtVencimento || pagamento.dtPagamento),
     sede: pagamento.sede ?? '',
     colaborador: pagamento.colaborador ?? '',
@@ -193,7 +186,6 @@ export function mapApiToForm(pagamento) {
           valor: formatCurrencyInput(item.valor),
         }))
       : [],
-    status: pagamento.status ?? 'LANCADO',
   }
 }
 
@@ -209,7 +201,6 @@ function buildRateiosPayload(rateios) {
 
 export function buildCreatePayload(form) {
   return {
-    dtPagamento: form.dtPagamento || null,
     dtVencimento: form.dtVencimento,
     sede: form.sede.trim(),
     colaborador: form.colaborador.trim(),

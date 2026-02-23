@@ -1,3 +1,5 @@
+﻿import { useEffect, useRef, useState } from 'react'
+
 function TopBar({
   currentDate,
   currentMonth,
@@ -5,6 +7,7 @@ function TopBar({
   onHistory,
   onToggleFilters,
   onConfigSetor,
+  onConfigDespesa,
   onToggleView,
   viewMode,
   onReload,
@@ -13,7 +16,27 @@ function TopBar({
   onAuthAction,
   loading,
   showSetorButton,
+  showDespesaButton,
 }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    const handleOutsideClick = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [menuOpen])
+
+  const runMenuAction = (action) => () => {
+    setMenuOpen(false)
+    action?.()
+  }
+
   return (
     <header className="topbar">
       <div className="brand">
@@ -34,34 +57,57 @@ function TopBar({
         </div>
       </div>
 
-      <nav className="topbar-actions">
-        <button className="topbar-action" type="button" onClick={onCreate}>
-          Lancamento
-        </button>
-        <button className="topbar-action" type="button" onClick={onHistory} disabled={disableHistory}>
-          Historico
-        </button>
-        <button className="topbar-action" type="button" onClick={onToggleFilters}>
-          Filtrar
-        </button>
-        {showSetorButton ? (
-          <button className="topbar-action" type="button" onClick={onConfigSetor}>
-            Setor
-          </button>
-        ) : null}
+      <nav className="topbar-actions" ref={menuRef}>
         <button
-          className={`topbar-action${viewMode === 'spreadsheet' ? ' active' : ''}`}
+          className={`topbar-action topbar-menu-trigger${menuOpen ? ' active' : ''}`}
           type="button"
-          onClick={onToggleView}
+          onClick={() => setMenuOpen((prev) => !prev)}
         >
-          {viewMode === 'spreadsheet' ? 'Cards' : 'Planilha'}
+          MENU
         </button>
-        <button className="topbar-action topbar-action-auth" type="button" onClick={onAuthAction}>
-          {isAuthenticated ? 'Logout' : 'Login'}
-        </button>
-        <button className="topbar-action" type="button" onClick={onReload} disabled={loading}>
-          {loading ? 'Atualizando...' : 'Atualizar'}
-        </button>
+
+        {menuOpen ? (
+          <div className="topbar-menu" role="menu">
+            <button className="topbar-menu-action" type="button" onClick={runMenuAction(onCreate)}>
+              Lancamento
+            </button>
+            <button className="topbar-menu-action" type="button" onClick={runMenuAction(onToggleFilters)}>
+              Filtrar
+            </button>
+            <button
+              className="topbar-menu-action"
+              type="button"
+              onClick={runMenuAction(onHistory)}
+              disabled={disableHistory}
+            >
+              Historico
+            </button>
+            {showDespesaButton ? (
+              <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigDespesa)}>
+                Criar Despesa
+              </button>
+            ) : null}
+            {showSetorButton ? (
+              <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigSetor)}>
+                Criar Setor
+              </button>
+            ) : null}
+            <button className="topbar-menu-action" type="button" onClick={runMenuAction(onToggleView)}>
+              {viewMode === 'spreadsheet' ? 'Cards' : 'Planilha'}
+            </button>
+            <button className="topbar-menu-action" type="button" onClick={runMenuAction(onAuthAction)}>
+              {isAuthenticated ? 'Logout' : 'Login'}
+            </button>
+            <button
+              className="topbar-menu-action"
+              type="button"
+              onClick={runMenuAction(onReload)}
+              disabled={loading}
+            >
+              {loading ? 'Atualizando...' : 'Atualizar'}
+            </button>
+          </div>
+        ) : null}
       </nav>
     </header>
   )

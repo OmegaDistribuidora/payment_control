@@ -1,7 +1,6 @@
 package br.com.omega.payment_control.repository;
 
 import br.com.omega.payment_control.entity.Pagamento;
-import br.com.omega.payment_control.entity.StatusPagamento;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -57,8 +56,6 @@ public interface PagamentoRepository extends JpaRepository<Pagamento, Long> {
           and (:filtrarDespesa = false or p.despesaNorm = :despesa)
           and (:filtrarDotacao = false or p.dotacaoNorm = :dotacao)
 
-          and (:filtrarStatus = false or p.status = :status)
-
           and (
                 :filtrarQ = false
                 or lower(p.despesa) like :q
@@ -80,8 +77,6 @@ public interface PagamentoRepository extends JpaRepository<Pagamento, Long> {
             @Param("despesa") String despesa,
             @Param("filtrarDotacao") boolean filtrarDotacao,
             @Param("dotacao") String dotacao,
-            @Param("filtrarStatus") boolean filtrarStatus,
-            @Param("status") StatusPagamento status,
             @Param("filtrarQ") boolean filtrarQ,
             @Param("q") String q,
             Pageable pageable
@@ -106,8 +101,6 @@ public interface PagamentoRepository extends JpaRepository<Pagamento, Long> {
           and (:filtrarDespesa = false or p.despesaNorm = :despesa)
           and (:filtrarDotacao = false or p.dotacaoNorm = :dotacao)
 
-          and (:filtrarStatus = false or p.status = :status)
-
           and (
                 :filtrarQ = false
                 or lower(p.despesa) like :q
@@ -129,8 +122,6 @@ public interface PagamentoRepository extends JpaRepository<Pagamento, Long> {
             @Param("despesa") String despesa,
             @Param("filtrarDotacao") boolean filtrarDotacao,
             @Param("dotacao") String dotacao,
-            @Param("filtrarStatus") boolean filtrarStatus,
-            @Param("status") StatusPagamento status,
             @Param("filtrarQ") boolean filtrarQ,
             @Param("q") String q
     );
