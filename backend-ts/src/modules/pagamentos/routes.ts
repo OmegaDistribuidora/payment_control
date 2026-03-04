@@ -68,8 +68,7 @@ export async function registerPagamentoRoutes(app: FastifyInstance): Promise<voi
     if (!authUser) badRequest('Usuario autenticado nao encontrado.');
     const id = readId((request.params as { id: string }).id);
     await deletarPagamento(authUser, id);
-    reply.status(204);
-    return null;
+    reply.status(204).send();
   });
 
   app.post('/api/pagamentos/normalize', async (request) => {
