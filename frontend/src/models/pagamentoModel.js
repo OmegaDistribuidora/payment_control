@@ -150,11 +150,12 @@ export function formatCurrencyInput(value) {
 
   const digits = value.toString().replace(/\D/g, '')
   if (!digits) return ''
-  const cents = Number(digits) / 100
+  const integerValue = Number(digits)
+  if (!Number.isFinite(integerValue)) return ''
   return new Intl.NumberFormat('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(cents)
+  }).format(integerValue)
 }
 
 export function parseCurrency(value) {

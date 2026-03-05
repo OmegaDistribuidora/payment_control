@@ -135,7 +135,8 @@ function Field({ field, value, onChange, disabled, options }) {
         inputMode="decimal"
         placeholder={field.placeholder}
         value={value}
-        onChange={(event) => onChange(field.key, formatCurrencyInput(event.target.value))}
+        onChange={(event) => onChange(field.key, event.target.value)}
+        onBlur={(event) => onChange(field.key, formatCurrencyInput(event.target.value))}
         disabled={disabled}
       />
     )
@@ -242,6 +243,12 @@ function NewPaymentModal({
                       value={getRateioValue(form.rateios, item.value)}
                       onChange={(event) =>
                         onChange('rateios', upsertRateio(form.rateios, item.value, event.target.value))
+                      }
+                      onBlur={(event) =>
+                        onChange(
+                          'rateios',
+                          upsertRateio(form.rateios, item.value, formatCurrencyInput(event.target.value))
+                        )
                       }
                       disabled={loading}
                     />
@@ -467,7 +474,7 @@ function getRateioValue(rateios, nome) {
 
 function upsertRateio(rateios, nome, rawValue) {
   const next = Array.isArray(rateios) ? [...rateios] : []
-  const formatted = formatCurrencyInput(rawValue)
+  const formatted = String(rawValue ?? '').trim()
   const idx = next.findIndex((item) => item.nome === nome)
   if (!formatted) {
     if (idx >= 0) next.splice(idx, 1)
