@@ -129,9 +129,20 @@ export function formatStatusLabel(status) {
 
 export function formatCurrencyInput(value) {
   if (value === null || value === undefined) return ''
-  const digits = value.toString().replace(/\D/g, '')
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return ''
+    return new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value)
+  }
+
+  const text = value.toString().trim()
+  if (!text) return ''
+  const digits = text.replace(/\D/g, '')
   if (!digits) return ''
   const cents = Number(digits) / 100
+  if (!Number.isFinite(cents)) return ''
   return new Intl.NumberFormat('pt-BR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

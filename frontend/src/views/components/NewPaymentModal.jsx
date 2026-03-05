@@ -241,7 +241,10 @@ function NewPaymentModal({
                       inputMode="decimal"
                       value={getRateioValue(form.rateios, item.value)}
                       onChange={(event) =>
-                        onChange('rateios', upsertRateio(form.rateios, item.value, event.target.value))
+                        onChange(
+                          'rateios',
+                          upsertRateio(form.rateios, item.value, formatCurrencyInput(event.target.value))
+                        )
                       }
                       disabled={loading}
                     />
