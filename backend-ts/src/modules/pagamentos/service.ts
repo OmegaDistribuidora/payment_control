@@ -829,11 +829,20 @@ export async function deletarPagamento(authUser: AuthUser, id: number): Promise<
 
   const client = await pool.connect();
   try {
-    await client.query('begin');
     const row = await getPagamentoById(client, authUser, id);
     const rateios = await getRateios(client, id);
     const snapshot = buildSnapshot(row, rateios);
-    await logHistorico(client, id, 'EXCLUIDO', snapshot, authUser.username);
+
+    await client.query('begin');
+    await client.query('savepoint sp_hist_delete');
+    try {
+      await logHistorico(client, id, 'EXCLUIDO', snapshot, authUser.username);
+      await client.query('release savepoint sp_hist_delete');
+    } catch {
+      await client.query('rollback to savepoint sp_hist_delete');
+      await client.query('release savepoint sp_hist_delete');
+    }
+
     await client.query('delete from pagamentos where id = $1', [id]);
     await client.query('commit');
   } catch (error) {
