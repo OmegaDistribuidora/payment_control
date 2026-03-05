@@ -841,6 +841,8 @@ export async function deletarPagamento(authUser: AuthUser, id: number): Promise<
       // no-op
     }
 
+    // Alguns bancos estao sem ON DELETE CASCADE neste relacionamento.
+    await client.query('delete from pagamento_rateio where pagamento_id = $1', [id]);
     await client.query('delete from pagamentos where id = $1', [id]);
     await client.query('commit');
   } catch (error) {
