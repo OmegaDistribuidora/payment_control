@@ -139,16 +139,7 @@ export function formatCurrencyInput(value) {
 
   const text = value.toString().trim()
   if (!text) return ''
-  if (/[.,]/.test(text)) {
-    const parsed = parseCurrency(text)
-    if (!Number.isFinite(parsed)) return ''
-    return new Intl.NumberFormat('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(parsed)
-  }
-
-  const digits = value.toString().replace(/\D/g, '')
+  const digits = text.replace(/\D/g, '')
   if (!digits) return ''
   const cents = Number(digits) / 100
   if (!Number.isFinite(cents)) return ''

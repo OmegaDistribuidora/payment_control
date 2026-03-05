@@ -18,6 +18,14 @@ function buildQueryParams(filters, page) {
   return query ? `?${query}` : ''
 }
 
+function normalizePagamentoId(id) {
+  const raw = String(id ?? '').trim().replace(/^"+|"+$/g, '')
+  if (/^\d+$/.test(raw)) return raw
+  const digits = raw.match(/\d+/g)?.join('')
+  if (digits) return digits
+  throw new Error('ID invalido para operacao.')
+}
+
 export function listarPagamentos(auth, filters, page, signal) {
   const query = buildQueryParams(filters, page)
   return apiRequest(`/api/pagamentos/meus${query}`, { auth, signal })
@@ -33,17 +41,21 @@ export function criarPagamento(auth, payload) {
 }
 
 export function editarPagamento(auth, id, payload) {
-  return apiRequest(`/api/pagamentos/${id}`, { method: 'PUT', auth, body: payload })
+  const safeId = normalizePagamentoId(id)
+  return apiRequest(`/api/pagamentos/${safeId}`, { method: 'PUT', auth, body: payload })
 }
 
 export function listarHistorico(auth, id) {
-  return apiRequest(`/api/pagamentos/${id}/historico`, { auth })
+  const safeId = normalizePagamentoId(id)
+  return apiRequest(`/api/pagamentos/${safeId}/historico`, { auth })
 }
 
 export function buscarPagamento(auth, id) {
-  return apiRequest(`/api/pagamentos/${id}`, { auth })
+  const safeId = normalizePagamentoId(id)
+  return apiRequest(`/api/pagamentos/${safeId}`, { auth })
 }
 
 export function deletarPagamento(auth, id) {
-  return apiRequest(`/api/pagamentos/${id}`, { method: 'DELETE', auth })
+  const safeId = normalizePagamentoId(id)
+  return apiRequest(`/api/pagamentos/${safeId}`, { method: 'DELETE', auth })
 }

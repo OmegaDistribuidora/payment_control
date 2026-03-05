@@ -12,8 +12,10 @@ import {
 } from './service.js';
 
 function readId(value: string): number {
-  const id = Number(value);
-  if (!Number.isFinite(id) || id <= 0) {
+  const raw = String(value ?? '').trim().replace(/^"+|"+$/g, '');
+  const normalized = /^\d+$/.test(raw) ? raw : raw.match(/\d+/g)?.join('') ?? '';
+  const id = Number(normalized);
+  if (!normalized || !Number.isFinite(id) || id <= 0) {
     badRequest('ID invalido.');
   }
   return id;
