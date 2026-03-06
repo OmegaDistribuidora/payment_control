@@ -65,12 +65,12 @@ function FiltersPanel({
         ) : null}
 
         <label className="filter-field">
-          <span>Sede</span>
-          <select value={filters.sede} onChange={(event) => onChange('sede', event.target.value)}>
-            <option value="">Todas</option>
-            {(references?.sedes || []).map((item) => (
-              <option key={`sede-${item.codigo}`} value={item.nome}>
-                {item.nome}
+          <span>Usuario</span>
+          <select value={filters.usuario} onChange={(event) => onChange('usuario', event.target.value)}>
+            <option value="">Todos</option>
+            {(references?.usuarios || []).map((item) => (
+              <option key={`usuario-${item.username}`} value={item.username}>
+                {item.username}
               </option>
             ))}
           </select>

@@ -160,6 +160,18 @@
   z-index: 1000;
 }
 
+.topbar-submenu {
+  display: grid;
+  gap: 6px;
+}
+
+.topbar-submenu-panel {
+  display: grid;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(255, 255, 255, 0.14);
+}
+
 .topbar-menu-action {
   width: 100%;
   text-align: left;
@@ -238,6 +250,45 @@
 
 .filter-card.total-card {
   border: 2px solid var(--navy-700);
+}
+
+.filter-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.filter-tool-button {
+  border: 1px solid rgba(8, 42, 70, 0.18);
+  background: var(--white);
+  color: var(--navy-800);
+  border-radius: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.filter-tool-button:hover {
+  background: #f1f6fb;
+}
+
+.filter-tool-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.filter-tool-toggle.active {
+  border-color: var(--navy-700);
+  background: #edf4fb;
 }
 
 .filter-label {
@@ -613,6 +664,14 @@
   width: min(520px, 100%);
 }
 
+.modal-user {
+  width: min(520px, 100%);
+}
+
+.modal-reports {
+  width: min(780px, 100%);
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -836,6 +895,44 @@
   background: #f8fafc;
   color: var(--ink-700);
   cursor: pointer;
+}
+
+.report-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.report-card {
+  border: 1px solid rgba(8, 42, 70, 0.12);
+  border-radius: 14px;
+  background: #f8fbff;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.report-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.report-card-total {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--navy-800);
+}
+
+.report-card-meta {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+.report-summary {
+  margin-right: auto;
+  font-weight: 700;
+  color: var(--navy-800);
 }
 
 .sheet-spreadsheet {
@@ -1189,5 +1286,13 @@
 
   .filters {
     grid-template-columns: 1fr;
+  }
+
+  .filter-tools {
+    justify-content: stretch;
+  }
+
+  .filter-tool-button {
+    width: 100%;
   }
 }

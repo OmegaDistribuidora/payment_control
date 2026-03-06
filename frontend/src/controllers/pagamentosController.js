@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildCreatePayload,
+  createDefaultForm,
   buildUpdatePayload,
   defaultFilters,
-  defaultForm,
+  defaultReportState,
+  defaultUserForm,
   mapApiToForm,
   parseCurrency,
   toInputDate,
@@ -14,6 +16,7 @@ import {
   criarPagamento,
   deletarPagamento,
   editarPagamento,
+  carregarRelatorioSedes,
   listarHistorico,
   listarPagamentos,
   somarPagamentos,
@@ -25,6 +28,7 @@ import {
   salvarDespesaConfig,
   salvarSetorConfig,
 } from '../services/referenciasService.js'
+import { criarUsuario } from '../services/usuariosService.js'
 
 function buildFiltersForRange(range, currentFilters = defaultFilters) {
   const today = new Date()
@@ -82,6 +86,7 @@ export function usePagamentosController() {
     empresas: [],
     fornecedores: [],
     colaboradores: [],
+    usuarios: [],
     setorDespesas: {},
   })
   const [pageInfo, setPageInfo] = useState({
@@ -99,7 +104,13 @@ export function usePagamentosController() {
   const [setorForm, setSetorForm] = useState({ nome: '', despesas: [] })
   const [despesaModalOpen, setDespesaModalOpen] = useState(false)
   const [despesaForm, setDespesaForm] = useState({ setor: '', despesa: '' })
-  const [form, setForm] = useState(defaultForm)
+  const [userModalOpen, setUserModalOpen] = useState(false)
+  const [userForm, setUserForm] = useState({ ...defaultUserForm })
+  const [reportsModalOpen, setReportsModalOpen] = useState(false)
+  const [reportsData, setReportsData] = useState(defaultReportState)
+  const [reportsLoading, setReportsLoading] = useState(false)
+  const [reportsError, setReportsError] = useState('')
+  const [form, setForm] = useState(() => createDefaultForm())
   const [historyModalOpen, setHistoryModalOpen] = useState(false)
   const [historyItems, setHistoryItems] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -134,6 +145,7 @@ export function usePagamentosController() {
       empresas: bundle?.empresas || [],
       fornecedores: bundle?.fornecedores || [],
       colaboradores: bundle?.colaboradores || [],
+      usuarios: bundle?.usuarios || [],
       setorDespesas: bundle?.setorDespesas || {},
     }
     setReferences(next)
@@ -143,8 +155,12 @@ export function usePagamentosController() {
   const username = auth?.username?.toLowerCase()
   const isAdmin = username === 'admin'
   const isRh = username === 'rh'
+  const isDiretoria = username === 'diretoria'
   const canCreateSetor = isAdmin
   const canCreateDespesa = isAdmin || isRh
+  const canCreateUser = isAdmin
+  const canViewReports = isAdmin
+  const canViewHistory = isAdmin || isDiretoria || isRh
 
   const fetchPagamentos = async ({ pageNumber, authOverride, filtersOverride, skipCache } = {}) => {
     const authData = authOverride || auth
@@ -356,6 +372,8 @@ export function usePagamentosController() {
     setAuthModalOpen(true)
     setSetorModalOpen(false)
     setDespesaModalOpen(false)
+    setUserModalOpen(false)
+    setReportsModalOpen(false)
     setPeriodPreset('anoAtual')
     setFilters(buildFiltersForRange('anoAtual', defaultFilters))
     setTotalValue(0)
@@ -363,6 +381,8 @@ export function usePagamentosController() {
     setPrefetchCache({})
     setSpreadsheetRows([])
     setViewMode('cards')
+    setReportsData(defaultReportState)
+    setReportsError('')
   }
 
   useEffect(() => {
@@ -415,7 +435,7 @@ export function usePagamentosController() {
 
   const openCreateModal = () => {
     setModal({ open: true, mode: 'create' })
-    setForm({ ...defaultForm, colaborador: '' })
+    setForm({ ...createDefaultForm(), colaborador: '' })
     setError('')
   }
 
@@ -453,6 +473,62 @@ export function usePagamentosController() {
 
   const closeDespesaModal = () => {
     setDespesaModalOpen(false)
+  }
+
+  const openUserModal = () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!isAdmin) {
+      showError('Somente admin pode criar usuarios.')
+      return
+    }
+    setUserForm({ ...defaultUserForm })
+    setUserModalOpen(true)
+    setError('')
+  }
+
+  const closeUserModal = () => {
+    setUserModalOpen(false)
+  }
+
+  const updateUserForm = (key, value) => {
+    setUserForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const openReportsModal = async () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!isAdmin) {
+      showError('Somente admin pode visualizar relatorios.')
+      return
+    }
+
+    setReportsModalOpen(true)
+    setReportsLoading(true)
+    setReportsError('')
+    try {
+      const data = await carregarRelatorioSedes(auth, filters)
+      setReportsData(data || defaultReportState)
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        setReportsModalOpen(false)
+        showError('Credenciais invalidas.')
+      } else {
+        setReportsError(err.message || 'Erro ao carregar relatorio.')
+      }
+    } finally {
+      setReportsLoading(false)
+    }
+  }
+
+  const closeReportsModal = () => {
+    setReportsModalOpen(false)
+    setReportsError('')
   }
 
   const updateSetorNome = (nome) => {
@@ -568,6 +644,49 @@ export function usePagamentosController() {
     }
   }
 
+  const saveUser = async () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!isAdmin) {
+      showError('Somente admin pode criar usuarios.')
+      return
+    }
+
+    const username = userForm.username?.trim().toLowerCase()
+    const password = userForm.password?.trim()
+    const role = userForm.role?.trim() || 'MATRIZ'
+
+    if (!username) {
+      showError('Informe o login do usuario.')
+      return
+    }
+    if (!password) {
+      showError('Informe a senha do usuario.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await criarUsuario(auth, { username, password, role })
+      const bundle = await listarReferencias(auth)
+      applyReferenceBundle(bundle)
+      saveCachedReferencias(bundle)
+      setUserModalOpen(false)
+      setUserForm({ ...defaultUserForm })
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        showError(err.message || 'Erro ao criar usuario.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const openEditModal = async (pagamentoOverride) => {
     const pagamento = pagamentoOverride || selectedPagamento
     if (!pagamento) {
@@ -606,6 +725,10 @@ export function usePagamentosController() {
   const openHistoryModal = async () => {
     if (!auth) {
       setAuthModalOpen(true)
+      return
+    }
+    if (!canViewHistory) {
+      showError('Historico indisponivel para este usuario.')
       return
     }
     if (!selectedPagamento) {
@@ -811,6 +934,9 @@ export function usePagamentosController() {
     auth,
     isAdmin,
     isRh,
+    canCreateUser,
+    canViewReports,
+    canViewHistory,
     canCreateSetor,
     canCreateDespesa,
     authModalOpen,
@@ -829,6 +955,12 @@ export function usePagamentosController() {
     setorForm,
     despesaModalOpen,
     despesaForm,
+    userModalOpen,
+    userForm,
+    reportsModalOpen,
+    reportsData,
+    reportsLoading,
+    reportsError,
     form,
     historyModalOpen,
     historyItems,
@@ -856,11 +988,15 @@ export function usePagamentosController() {
     openCreateModal,
     openSetorModal,
     openDespesaModal,
+    openUserModal,
+    openReportsModal,
     openEditModal,
     openHistoryModal,
     closeModal,
     closeSetorModal,
     closeDespesaModal,
+    closeUserModal,
+    closeReportsModal,
     closeHistoryModal,
     updateForm,
     updateFilters,
@@ -869,9 +1005,11 @@ export function usePagamentosController() {
     removeSetorDespesa,
     updateDespesaSetor,
     updateDespesaNome,
+    updateUserForm,
     savePagamento,
     saveSetor,
     saveDespesa,
+    saveUser,
     removePagamento,
     goNextPage,
     goPrevPage,

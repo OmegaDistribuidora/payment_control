@@ -16,7 +16,7 @@ export function salvarDespesaConfig(auth, payload) {
   return apiRequest('/api/referencias/despesas/config', { method: 'POST', auth, body: payload })
 }
 
-const CACHE_KEY = 'payment_control.referencias.v2'
+const CACHE_KEY = 'payment_control.referencias.v3'
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6
 
 function hasReferenceData(data) {

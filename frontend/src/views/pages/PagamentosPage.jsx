@@ -10,6 +10,8 @@ import TopBar from '../components/TopBar.jsx'
 import AuthModal from '../components/AuthModal.jsx'
 import SetorConfigModal from '../components/SetorConfigModal.jsx'
 import DespesaConfigModal from '../components/DespesaConfigModal.jsx'
+import UserConfigModal from '../components/UserConfigModal.jsx'
+import ReportsModal from '../components/ReportsModal.jsx'
 import { formatDate, formatMonth } from '../../models/pagamentoModel.js'
 import '../../styles/payments.css'
 
@@ -48,11 +50,10 @@ function PagamentosPage() {
   )
 
   const handleReload = useCallback(async () => {
+    await controller.fetchPagamentos({ pageNumber: controller.pageInfo.number, skipCache: true })
     if (controller.viewMode === 'spreadsheet') {
       await controller.fetchSpreadsheetRows()
-      return
     }
-    await controller.fetchPagamentos({ pageNumber: controller.pageInfo.number, skipCache: true })
   }, [controller.fetchPagamentos, controller.fetchSpreadsheetRows, controller.pageInfo.number, controller.viewMode])
 
   return (
@@ -62,23 +63,29 @@ function PagamentosPage() {
         currentMonth={formatMonth(today)}
         onCreate={controller.openCreateModal}
         onHistory={controller.openHistoryModal}
-        onToggleFilters={controller.toggleFilters}
         onConfigSetor={controller.openSetorModal}
         onConfigDespesa={controller.openDespesaModal}
+        onConfigUser={controller.openUserModal}
+        onOpenReports={controller.openReportsModal}
         onToggleView={controller.toggleViewMode}
         viewMode={controller.viewMode}
-        onReload={handleReload}
         disableHistory={controller.viewMode !== 'cards' || !controller.selectedId}
         isAuthenticated={Boolean(controller.auth)}
         onAuthAction={handleAuthAction}
-        loading={controller.loading}
         showSetorButton={controller.canCreateSetor}
         showDespesaButton={controller.canCreateDespesa}
+        showUserButton={controller.canCreateUser}
+        showReportsButton={controller.canViewReports}
+        showHistoryButton={controller.canViewHistory}
       />
       <FiltersBar
         filters={controller.filters}
         userLabel={controller.auth?.username}
         totalValue={controller.totalValue}
+        filtersOpen={controller.isFiltersOpen}
+        loading={controller.loading}
+        onReload={handleReload}
+        onToggleFilters={controller.toggleFilters}
       />
       <FiltersPanel
         isOpen={controller.isFiltersOpen}
@@ -185,6 +192,22 @@ function PagamentosPage() {
         onDespesaChange={controller.updateDespesaNome}
         onSave={controller.saveDespesa}
         onClose={controller.closeDespesaModal}
+      />
+      <UserConfigModal
+        isOpen={controller.userModalOpen}
+        form={controller.userForm}
+        loading={controller.loading}
+        error={controller.error}
+        onChange={controller.updateUserForm}
+        onSave={controller.saveUser}
+        onClose={controller.closeUserModal}
+      />
+      <ReportsModal
+        isOpen={controller.reportsModalOpen}
+        data={controller.reportsData}
+        loading={controller.reportsLoading}
+        error={controller.reportsError}
+        onClose={controller.closeReportsModal}
       />
     </div>
   )

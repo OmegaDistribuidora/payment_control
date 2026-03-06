@@ -5,7 +5,7 @@ function buildQueryParams(filters, page) {
 
   if (filters?.de) params.set('de', filters.de)
   if (filters?.ate) params.set('ate', filters.ate)
-  if (filters?.sede) params.set('sede', filters.sede)
+  if (filters?.usuario) params.set('usuario', filters.usuario)
   if (filters?.setor) params.set('setor', filters.setor)
   if (filters?.despesa) params.set('despesa', filters.despesa)
   if (filters?.dotacao) params.set('dotacao', filters.dotacao)
@@ -58,4 +58,9 @@ export function buscarPagamento(auth, id) {
 export function deletarPagamento(auth, id) {
   const safeId = normalizePagamentoId(id)
   return apiRequest(`/api/pagamentos/${safeId}`, { method: 'DELETE', auth })
+}
+
+export function carregarRelatorioSedes(auth, filters, signal) {
+  const query = buildQueryParams(filters)
+  return apiRequest(`/api/pagamentos/relatorios/sedes${query}`, { auth, signal })
 }

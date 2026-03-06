@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { pool } from '../../db/pool.js';
 import { badRequest, forbidden } from '../../http/http-error.js';
 import { canManageDespesas, canManageSetores, type AuthUser } from '../../auth/users.js';
+import { listAvailableUsers } from '../../auth/users.js';
 import { trimToNull } from '../../http/utils.js';
 
 export type ReferenceItem = {
@@ -30,6 +31,7 @@ export type ReferenceBundle = {
   empresas: ReferenceItem[];
   fornecedores: ReferenceItem[];
   colaboradores: ColaboradorItem[];
+  usuarios: Array<{ username: string; role: string; origem: 'padrao' | 'custom' }>;
   setorDespesas: Record<string, string[]>;
 };
 
@@ -146,6 +148,7 @@ export async function listTudo(): Promise<ReferenceBundle> {
     empresas: await listEmpresas(),
     fornecedores: await listFornecedores(),
     colaboradores: await listColaboradores(),
+    usuarios: await listAvailableUsers(),
     setorDespesas: await listSetorDespesas(),
   };
   cacheBundle(bundle);

@@ -3,25 +3,59 @@
 export const defaultFilters = {
   de: '',
   ate: '',
-  sede: '',
+  usuario: '',
   setor: '',
   despesa: '',
   dotacao: '',
   q: '',
 }
 
-export const defaultForm = {
-  dtVencimento: '',
-  sede: '',
-  colaborador: '',
-  setor: '',
-  despesa: '',
-  dotacao: '',
-  empresaFornecedor: '',
-  setorPagamento: '',
-  valorTotal: '',
-  descricao: '',
-  rateios: [],
+export function createDefaultForm() {
+  return {
+    dtPagamento: toInputDate(new Date()),
+    dtVencimento: '',
+    sede: '',
+    colaborador: '',
+    setor: '',
+    despesa: '',
+    dotacao: '',
+    empresaFornecedor: '',
+    setorPagamento: '',
+    valorTotal: '',
+    descricao: '',
+    rateios: [],
+  }
+}
+
+export const defaultForm = createDefaultForm()
+
+export const usuarioRoleLabels = {
+  GERENCIA: 'Admin',
+  DIRETORIA: 'Diretoria',
+  RH: 'RH',
+  MATRIZ: 'Matriz',
+  SOBRAL: 'Sobral',
+  CARIRI: 'Cariri',
+}
+
+export const usuarioRoleOptions = [
+  { value: 'MATRIZ', label: 'Matriz' },
+  { value: 'SOBRAL', label: 'Sobral' },
+  { value: 'CARIRI', label: 'Cariri' },
+  { value: 'RH', label: 'RH' },
+  { value: 'DIRETORIA', label: 'Diretoria' },
+  { value: 'GERENCIA', label: 'Admin' },
+]
+
+export const defaultUserForm = {
+  username: '',
+  password: '',
+  role: 'MATRIZ',
+}
+
+export const defaultReportState = {
+  content: [],
+  totalGeral: 0,
 }
 
 export const sheetColumns = [
@@ -34,6 +68,7 @@ export const sheetColumns = [
   },
   { key: 'sede', label: 'Sede', align: 'left', value: (p) => p.sede ?? '' },
   { key: 'dtSistema', label: 'Dt Registro', align: 'center', value: (p) => formatDateTime(p.dtSistema) },
+  { key: 'dtPagamento', label: 'Dt Pagamento', align: 'center', value: (p) => formatDate(p.dtPagamento) },
   { key: 'dtVencimento', label: 'Dt Vencimento', align: 'center', value: (p) => formatDate(p.dtVencimento) },
   { key: 'setor', label: 'Setor', align: 'left', value: (p) => p.setor ?? '' },
   { key: 'despesa', label: 'Despesa', align: 'left', value: (p) => p.despesa ?? '' },
@@ -50,6 +85,7 @@ export const sheetColumns = [
 ]
 
 export const novoPagamentoFields = [
+  { key: 'dtPagamento', label: 'Data de Pagamento', type: 'date', required: false },
   { key: 'dtVencimento', label: 'Data de Vencimento', type: 'date', required: true },
   { key: 'sede', label: 'Sede', type: 'select', placeholder: 'Selecione...', required: true },
   { key: 'colaborador', label: 'Colaborador', type: 'select', placeholder: 'Selecione...', required: true },
@@ -181,6 +217,7 @@ export function toInputDate(value) {
 
 export function mapApiToForm(pagamento) {
   return {
+    dtPagamento: toInputDate(pagamento.dtPagamento),
     dtVencimento: toInputDate(pagamento.dtVencimento || pagamento.dtPagamento),
     sede: pagamento.sede ?? '',
     colaborador: pagamento.colaborador ?? '',
@@ -212,6 +249,7 @@ function buildRateiosPayload(rateios) {
 
 export function buildCreatePayload(form) {
   return {
+    dtPagamento: form.dtPagamento || null,
     dtVencimento: form.dtVencimento,
     sede: form.sede.trim(),
     colaborador: form.colaborador.trim(),

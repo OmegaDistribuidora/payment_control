@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { env } from './config/env.js';
 import { HttpError } from './http/http-error.js';
 import { requireBasicAuth } from './auth/basicAuth.js';
+import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerReferenceRoutes } from './modules/references/routes.js';
 import { registerPagamentoRoutes } from './modules/pagamentos/routes.js';
 
@@ -68,6 +69,7 @@ export function createApp() {
     });
   });
 
+  app.register(registerAuthRoutes);
   app.register(registerReferenceRoutes);
   app.register(registerPagamentoRoutes);
 

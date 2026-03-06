@@ -40,6 +40,7 @@ function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, loading }) {
             const setor = getColumnValue(row, { key: 'setor' })
             const despesa = getColumnValue(row, { key: 'despesa' })
             const sede = getColumnValue(row, { key: 'sede' })
+            const pagamento = formatDate(row.dtPagamento)
             const vencimento = formatDate(row.dtVencimento)
             const quem = getColumnValue(row, { key: 'setorPagamento' })
             const empresaFornecedor = getColumnValue(row, { key: 'empresaFornecedor' }) || '-'
@@ -122,6 +123,7 @@ function SheetTable({ rows, selectedId, onSelect, onEdit, onDelete, loading }) {
                     <div className="card-secondary">
                       {[
                         sede,
+                        pagamento ? `Pgto.: ${pagamento}` : '',
                         vencimento ? `Venc.: ${vencimento}` : '',
                         quem,
                       ]

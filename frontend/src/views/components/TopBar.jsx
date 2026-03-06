@@ -1,41 +1,53 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 function TopBar({
   currentDate,
   currentMonth,
   onCreate,
   onHistory,
-  onToggleFilters,
   onConfigSetor,
   onConfigDespesa,
+  onConfigUser,
+  onOpenReports,
   onToggleView,
   viewMode,
-  onReload,
   disableHistory,
   isAuthenticated,
   onAuthAction,
-  loading,
   showSetorButton,
   showDespesaButton,
+  showUserButton,
+  showReportsButton,
+  showHistoryButton,
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const menuRef = useRef(null)
 
   useEffect(() => {
-    if (!menuOpen) return undefined
+    if (!menuOpen) {
+      setOptionsOpen(false)
+      return undefined
+    }
+
     const handleOutsideClick = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setMenuOpen(false)
+        setOptionsOpen(false)
       }
     }
+
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [menuOpen])
 
   const runMenuAction = (action) => () => {
     setMenuOpen(false)
+    setOptionsOpen(false)
     action?.()
   }
+
+  const hasOptions = showDespesaButton || showSetorButton || showUserButton
 
   return (
     <header className="topbar">
@@ -69,42 +81,58 @@ function TopBar({
         {menuOpen ? (
           <div className="topbar-menu" role="menu">
             <button className="topbar-menu-action" type="button" onClick={runMenuAction(onCreate)}>
-              Lancamento
+              Novo Lancamento
             </button>
-            <button className="topbar-menu-action" type="button" onClick={runMenuAction(onToggleFilters)}>
-              Filtrar
-            </button>
-            <button
-              className="topbar-menu-action"
-              type="button"
-              onClick={runMenuAction(onHistory)}
-              disabled={disableHistory}
-            >
-              Historico
-            </button>
-            {showDespesaButton ? (
-              <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigDespesa)}>
-                Criar Despesa
+            {showHistoryButton ? (
+              <button
+                className="topbar-menu-action"
+                type="button"
+                onClick={runMenuAction(onHistory)}
+                disabled={disableHistory}
+              >
+                Historico
               </button>
             ) : null}
-            {showSetorButton ? (
-              <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigSetor)}>
-                Criar Setor
+            {showReportsButton ? (
+              <button className="topbar-menu-action" type="button" onClick={runMenuAction(onOpenReports)}>
+                Relatorios
               </button>
+            ) : null}
+            {hasOptions ? (
+              <div className={`topbar-submenu${optionsOpen ? ' is-open' : ''}`}>
+                <button
+                  className="topbar-menu-action"
+                  type="button"
+                  onClick={() => setOptionsOpen((prev) => !prev)}
+                >
+                  Opcoes
+                </button>
+                {optionsOpen ? (
+                  <div className="topbar-submenu-panel">
+                    {showDespesaButton ? (
+                      <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigDespesa)}>
+                        Criar Despesa
+                      </button>
+                    ) : null}
+                    {showSetorButton ? (
+                      <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigSetor)}>
+                        Criar Setor
+                      </button>
+                    ) : null}
+                    {showUserButton ? (
+                      <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigUser)}>
+                        Criar Usuario
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             <button className="topbar-menu-action" type="button" onClick={runMenuAction(onToggleView)}>
               {viewMode === 'spreadsheet' ? 'Cards' : 'Planilha'}
             </button>
             <button className="topbar-menu-action" type="button" onClick={runMenuAction(onAuthAction)}>
               {isAuthenticated ? 'Logout' : 'Login'}
-            </button>
-            <button
-              className="topbar-menu-action"
-              type="button"
-              onClick={runMenuAction(onReload)}
-              disabled={loading}
-            >
-              {loading ? 'Atualizando...' : 'Atualizar'}
             </button>
           </div>
         ) : null}

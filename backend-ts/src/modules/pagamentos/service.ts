@@ -47,7 +47,7 @@ type HistoricoRow = {
 type Filtros = {
   de?: string;
   ate?: string;
-  sede?: string;
+  usuario?: string;
   setor?: string;
   despesa?: string;
   dotacao?: string;
@@ -77,6 +77,7 @@ type RateioInput = {
 };
 
 type PagamentoPayload = {
+  dtPagamento: string | null;
   dtVencimento: string;
   sede: string;
   colaborador: string;
@@ -91,6 +92,7 @@ type PagamentoPayload = {
 };
 
 type Snapshot = {
+  dtPagamento: string | null;
   dtVencimento: string | null;
   sede: string | null;
   colaborador: string | null;
@@ -208,6 +210,7 @@ function serializeDetails(value: unknown): string {
 
 function buildSnapshot(row: PagamentoRow, rateios: RateioRow[]): Snapshot {
   return {
+    dtPagamento: row.dtPagamento,
     dtVencimento: row.dtVencimento,
     sede: row.sede,
     colaborador: row.colaborador,
@@ -228,6 +231,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 function buildDiff(before: Snapshot, after: Snapshot): Record<string, { de: unknown; para: unknown }> {
   const keys: Array<keyof Snapshot> = [
+    'dtPagamento',
     'dtVencimento',
     'sede',
     'colaborador',
@@ -466,6 +470,7 @@ async function buildColaboradorMap(client?: PoolClient): Promise<Map<string, str
 function parsePayload(raw: unknown): PagamentoPayload {
   const body = (raw ?? {}) as Record<string, unknown>;
   return {
+    dtPagamento: ensureOptionalDate(body.dtPagamento, 'Data de pagamento'),
     dtVencimento: ensureDate(body.dtVencimento, 'Data de vencimento'),
     sede: ensureRequiredText(body.sede, 'Sede', 80),
     colaborador: ensureRequiredText(body.colaborador, 'Colaborador', 120),
@@ -498,13 +503,13 @@ function buildWhere(authUser: AuthUser, filtros: Filtros): WhereClause {
   if (de) push('coalesce(p.dt_vencimento, p.dt_pagamento) >= ?::date', de);
   if (ate) push('coalesce(p.dt_vencimento, p.dt_pagamento) <= ?::date', ate);
 
-  const sede = normalizeText(filtros.sede);
+  const usuario = normalizeText(filtros.usuario);
   const setor = normalizeText(filtros.setor);
   const despesa = normalizeText(filtros.despesa);
   const dotacao = normalizeText(filtros.dotacao);
   const q = toLikePattern(filtros.q);
 
-  if (sede) push('p.sede_norm = ?', sede);
+  if (usuario) push('lower(p.criado_por) = ?', usuario);
   if (setor) push('p.setor_norm = ?', setor);
   if (despesa) push('p.despesa_norm = ?', despesa);
   if (dotacao) push('p.dotacao_norm = ?', dotacao);
@@ -652,7 +657,7 @@ export async function criarPagamento(authUser: AuthUser, rawPayload: unknown): P
     const despesaNorm = normalizeToLower(payload.despesa);
     const dotacaoNorm = normalizeToLower(payload.dotacao);
 
-    const dtPagamento = toDateOnlyInFortaleza();
+    const dtPagamento = payload.dtPagamento ?? toDateOnlyInFortaleza();
     const { rows: insertRows } = await client.query<{ id: number }>(
       `
         insert into pagamentos (
@@ -764,25 +769,27 @@ export async function editarPagamento(authUser: AuthUser, id: number, rawPayload
         set
           ult_editado_por = $1,
           dt_ult_edicao = ${nowFortalezaSql()},
-          dt_vencimento = $2::date,
-          status = $3,
-          sede = $4,
-          sede_norm = $5,
-          colaborador = $6,
-          setor = $7,
-          setor_norm = $8,
-          despesa = $9,
-          despesa_norm = $10,
-          dotacao = $11,
-          dotacao_norm = $12,
-          empresa_fornecedor = $13,
-          setor_pagamento = $14,
-          valor_total = $15,
-          descricao = $16
-        where id = $17
+          dt_pagamento = $2::date,
+          dt_vencimento = $3::date,
+          status = $4,
+          sede = $5,
+          sede_norm = $6,
+          colaborador = $7,
+          setor = $8,
+          setor_norm = $9,
+          despesa = $10,
+          despesa_norm = $11,
+          dotacao = $12,
+          dotacao_norm = $13,
+          empresa_fornecedor = $14,
+          setor_pagamento = $15,
+          valor_total = $16,
+          descricao = $17
+        where id = $18
       `,
       [
         authUser.username,
+        payload.dtPagamento ?? beforeRow.dtPagamento ?? toDateOnlyInFortaleza(),
         payload.dtVencimento,
         STATUS_LANCADO,
         payload.sede,
@@ -872,4 +879,39 @@ export async function normalizeCampos(authUser: AuthUser): Promise<{ updated: nu
     `,
   );
   return { updated: rowCount ?? 0 };
+}
+
+export async function relatorioTotalPorSede(
+  authUser: AuthUser,
+  filtros: Filtros,
+): Promise<{ content: Array<{ sede: string; quantidade: number; total: number }>; totalGeral: number }> {
+  if (authUser.username.toLowerCase() !== 'admin') {
+    forbidden('Acao permitida somente para admin.');
+  }
+
+  const where = buildWhere(authUser, filtros);
+  const { rows } = await pool.query<{ sede: string | null; quantidade: string; total: string }>(
+    `
+      select
+        coalesce(nullif(trim(p.sede), ''), 'Sem sede') as sede,
+        count(*)::bigint as quantidade,
+        coalesce(sum(p.valor_total), 0) as total
+      from pagamentos p
+      ${where.sql}
+      group by coalesce(nullif(trim(p.sede), ''), 'Sem sede')
+      order by lower(coalesce(nullif(trim(p.sede), ''), 'Sem sede'))
+    `,
+    where.params,
+  );
+
+  const content = rows.map((row) => ({
+    sede: row.sede ?? 'Sem sede',
+    quantidade: Number(row.quantidade ?? 0),
+    total: Number(row.total ?? 0),
+  }));
+
+  return {
+    content,
+    totalGeral: Number(content.reduce((sum, item) => sum + item.total, 0).toFixed(2)),
+  };
 }

@@ -38,7 +38,7 @@ export async function requireBasicAuth(request: FastifyRequest, reply: FastifyRe
     sendUnauthorized(reply);
     return;
   }
-  const authUser = authenticateBasic(parsed.username, parsed.password);
+  const authUser = await authenticateBasic(parsed.username, parsed.password);
   if (!authUser) {
     sendUnauthorized(reply);
     return;
