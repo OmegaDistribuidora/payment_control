@@ -221,7 +221,7 @@ function buildLancamentoLabel(
   if (codVld !== undefined && codVld !== null && codVld !== '') {
     return String(codVld);
   }
-  if (row.entityType.toLowerCase() === 'pagamento' && row.entityId) {
+  if (String(row.entityType || '').toLowerCase() === 'pagamento' && row.entityId) {
     return `ID ${row.entityId}`;
   }
   return '-';
@@ -340,28 +340,28 @@ export async function listGlobalHistory(
   const sql = `
     with pagamento_events as (
       select
-        concat('pagamento-', h.id) as row_key,
-        'pagamento'::text as entity_type,
-        h.pagamento_id::text as entity_id,
-        h.acao as action,
-        h.criado_por as actor,
-        h.dt_evento as occurred_at,
-        h.detalhes as details,
-        p.cod_vld as current_cod_vld
+        concat('pagamento-', h.id) as "row_key",
+        'pagamento'::text as "entityType",
+        h.pagamento_id::text as "entityId",
+        h.acao as "action",
+        h.criado_por as "actor",
+        h.dt_evento as "occurredAt",
+        h.detalhes as "details",
+        p.cod_vld as "currentCodVld"
       from pagamento_historico h
       left join pagamentos p on p.id = h.pagamento_id
       ${wherePagamento}
     ),
     audit_events as (
       select
-        concat('audit-', a.id) as row_key,
-        a.entity_type,
-        a.entity_id,
-        a.action,
-        a.actor,
-        a.occurred_at,
-        a.details,
-        null::text as current_cod_vld
+        concat('audit-', a.id) as "row_key",
+        a.entity_type as "entityType",
+        a.entity_id as "entityId",
+        a.action as "action",
+        a.actor as "actor",
+        a.occurred_at as "occurredAt",
+        a.details as "details",
+        null::text as "currentCodVld"
       from app_audit_log a
       ${whereAudit}
     )
