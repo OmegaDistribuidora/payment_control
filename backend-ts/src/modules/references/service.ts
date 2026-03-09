@@ -4,6 +4,7 @@ import { badRequest, forbidden } from '../../http/http-error.js';
 import { canManageDespesas, canManageSetores, type AuthUser } from '../../auth/users.js';
 import { listAvailableUsers } from '../../auth/users.js';
 import { trimToNull } from '../../http/utils.js';
+import { logAudit } from '../../audit/service.js';
 
 export type ReferenceItem = {
   codigo: number;
@@ -221,6 +222,7 @@ export async function salvarSetorConfig(authUser: AuthUser, payload: unknown): P
     }
 
     let setorCodigo = await findCodigoByNome(client, 'ref_setor', setorNome);
+    const setorJaExistia = Boolean(setorCodigo);
     if (!setorCodigo) {
       setorCodigo = await nextCodigo(client, 'ref_setor');
       await client.query('insert into ref_setor (codigo, nome) values ($1, $2)', [setorCodigo, setorNome]);
@@ -253,6 +255,22 @@ export async function salvarSetorConfig(authUser: AuthUser, payload: unknown): P
         [setorCodigo, despesaCodigo],
       );
     }
+
+    await logAudit(client, {
+      entityType: 'setor',
+      entityId: setorNome,
+      action: setorJaExistia ? 'ATUALIZADO' : 'CRIADO',
+      actor: authUser.username,
+      details: {
+        descricao: setorJaExistia
+          ? `Setor ${setorNome} atualizado por ${authUser.username}`
+          : `Setor ${setorNome} criado por ${authUser.username}`,
+        snapshot: {
+          setor: setorNome,
+          despesas: uniqueDespesas,
+        },
+      },
+    });
 
     await client.query('commit');
   } catch (error) {
@@ -307,6 +325,20 @@ export async function salvarDespesaConfig(authUser: AuthUser, payload: unknown):
       'insert into ref_setor_despesa (setor_codigo, despesa_codigo) values ($1, $2) on conflict do nothing',
       [setorCodigo, despesaCodigo],
     );
+
+    await logAudit(client, {
+      entityType: 'despesa',
+      entityId: despesaNome,
+      action: 'CRIADO',
+      actor: authUser.username,
+      details: {
+        descricao: `Despesa ${despesaNome} criada no setor ${setorNome} por ${authUser.username}`,
+        snapshot: {
+          setor: setorNome,
+          despesa: despesaNome,
+        },
+      },
+    });
 
     await client.query('commit');
   } catch (error) {

@@ -50,6 +50,13 @@ export function listarHistorico(auth, id) {
   return apiRequest(`/api/pagamentos/${safeId}/historico`, { auth })
 }
 
+export function listarHistoricoGlobal(auth, filters = {}) {
+  const params = new URLSearchParams()
+  if (filters?.date) params.set('date', filters.date)
+  const query = params.toString()
+  return apiRequest(`/api/auditoria${query ? `?${query}` : ''}`, { auth })
+}
+
 export function buscarPagamento(auth, id) {
   const safeId = normalizePagamentoId(id)
   return apiRequest(`/api/pagamentos/${safeId}`, { auth })

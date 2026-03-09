@@ -3,6 +3,7 @@ import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 import { badRequest, forbidden } from '../http/http-error.js';
 import { trimToNull } from '../http/utils.js';
+import { logAudit } from '../audit/service.js';
 
 export type Role = 'GERENCIA' | 'DIRETORIA' | 'RH' | 'MATRIZ' | 'SOBRAL' | 'CARIRI';
 
@@ -295,6 +296,21 @@ export async function createUser(authUser: AuthUser, payload: CreateUserPayload)
       );
     }
 
+    await logAudit(client, {
+      entityType: 'usuario',
+      entityId: username,
+      action: 'CRIADO',
+      actor: authUser.username,
+      details: {
+        descricao: `Usuario ${username} criado por ${authUser.username}`,
+        snapshot: {
+          username,
+          role,
+          visibleUsernames,
+        },
+      },
+    });
+
     await client.query('commit');
     return { username, role };
   } catch (error) {
@@ -340,6 +356,16 @@ export async function changeOwnPassword(
       `,
       [authUser.username, hashPassword(newPassword), role],
     );
+
+    await logAudit(client, {
+      entityType: 'usuario',
+      entityId: authUser.username,
+      action: 'SENHA_ALTERADA',
+      actor: authUser.username,
+      details: {
+        descricao: `Usuario ${authUser.username} trocou sua senha`,
+      },
+    });
 
     await client.query('commit');
     return { username: authUser.username };

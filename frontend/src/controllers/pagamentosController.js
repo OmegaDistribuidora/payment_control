@@ -18,7 +18,7 @@ import {
   deletarPagamento,
   editarPagamento,
   carregarRelatorioSedes,
-  listarHistorico,
+  listarHistoricoGlobal,
   listarPagamentos,
   somarPagamentos,
 } from '../services/pagamentosService.js'
@@ -116,6 +116,7 @@ export function usePagamentosController() {
   const [reportsError, setReportsError] = useState('')
   const [form, setForm] = useState(() => createDefaultForm())
   const [historyModalOpen, setHistoryModalOpen] = useState(false)
+  const [historyDate, setHistoryDate] = useState('')
   const [historyItems, setHistoryItems] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState('')
@@ -826,17 +827,42 @@ export function usePagamentosController() {
       showError('Historico indisponivel para este usuario.')
       return
     }
-    if (!selectedPagamento) {
-      showError('Selecione um lancamento para ver o historico.')
-      return
-    }
 
     setHistoryModalOpen(true)
     setHistoryLoading(true)
     setHistoryError('')
+    setHistoryDate('')
     try {
-      const data = await listarHistorico(auth, selectedPagamento.id)
-      setHistoryItems(data || [])
+      const data = await listarHistoricoGlobal(auth)
+      setHistoryItems(data?.content || [])
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        setHistoryModalOpen(false)
+        showError('Credenciais invalidas.')
+      } else {
+        setHistoryError(err.message || 'Erro ao carregar historico.')
+      }
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const loadHistory = async (dateValue = '') => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!canViewHistory) {
+      showError('Historico indisponivel para este usuario.')
+      return
+    }
+
+    setHistoryLoading(true)
+    setHistoryError('')
+    try {
+      const data = await listarHistoricoGlobal(auth, { date: dateValue || undefined })
+      setHistoryItems(data?.content || [])
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
@@ -852,8 +878,22 @@ export function usePagamentosController() {
 
   const closeHistoryModal = () => {
     setHistoryModalOpen(false)
+    setHistoryDate('')
     setHistoryItems([])
     setHistoryError('')
+  }
+
+  const updateHistoryDate = (value) => {
+    setHistoryDate(value)
+  }
+
+  const applyHistoryDateFilter = async () => {
+    await loadHistory(historyDate)
+  }
+
+  const clearHistoryDateFilter = async () => {
+    setHistoryDate('')
+    await loadHistory('')
   }
 
   const updateForm = (key, value) => {
@@ -1061,6 +1101,7 @@ export function usePagamentosController() {
     reportsError,
     form,
     historyModalOpen,
+    historyDate,
     historyItems,
     historyLoading,
     historyError,
@@ -1098,6 +1139,9 @@ export function usePagamentosController() {
     closePasswordModal,
     closeReportsModal,
     closeHistoryModal,
+    updateHistoryDate,
+    applyHistoryDateFilter,
+    clearHistoryDateFilter,
     updateForm,
     updateFilters,
     updateSetorNome,

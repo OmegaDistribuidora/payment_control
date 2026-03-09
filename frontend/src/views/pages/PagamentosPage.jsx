@@ -71,7 +71,7 @@ function PagamentosPage() {
         onOpenReports={controller.openReportsModal}
         onToggleView={controller.toggleViewMode}
         viewMode={controller.viewMode}
-        disableHistory={controller.viewMode !== 'cards' || !controller.selectedId}
+        disableHistory={false}
         isAuthenticated={Boolean(controller.auth)}
         onAuthAction={handleAuthAction}
         showSetorButton={controller.canCreateSetor}
@@ -163,9 +163,13 @@ function PagamentosPage() {
       />
       <HistoryModal
         isOpen={controller.historyModalOpen}
+        selectedDate={controller.historyDate}
         items={controller.historyItems}
         loading={controller.historyLoading}
         error={controller.historyError}
+        onDateChange={controller.updateHistoryDate}
+        onApplyDateFilter={controller.applyHistoryDateFilter}
+        onClearDateFilter={controller.clearHistoryDateFilter}
         onClose={controller.closeHistoryModal}
       />
       <AuthModal

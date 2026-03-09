@@ -6,6 +6,7 @@ import { requireBasicAuth } from './auth/basicAuth.js';
 import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerReferenceRoutes } from './modules/references/routes.js';
 import { registerPagamentoRoutes } from './modules/pagamentos/routes.js';
+import { registerAuditRoutes } from './audit/routes.js';
 
 export function createApp() {
   const app = Fastify({
@@ -72,6 +73,7 @@ export function createApp() {
   app.register(registerAuthRoutes);
   app.register(registerReferenceRoutes);
   app.register(registerPagamentoRoutes);
+  app.register(registerAuditRoutes);
 
   return app;
 }
