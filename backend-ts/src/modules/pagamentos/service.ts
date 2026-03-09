@@ -92,6 +92,8 @@ type PagamentoPayload = {
 };
 
 type Snapshot = {
+  codVld: string | null;
+  dtSistema: string | null;
   dtPagamento: string | null;
   dtVencimento: string | null;
   sede: string | null;
@@ -212,6 +214,8 @@ function serializeDetails(value: unknown): string {
 
 function buildSnapshot(row: PagamentoRow, rateios: RateioRow[]): Snapshot {
   return {
+    codVld: row.codVld,
+    dtSistema: row.dtSistema,
     dtPagamento: row.dtPagamento,
     dtVencimento: row.dtVencimento,
     sede: row.sede,
@@ -233,6 +237,8 @@ function deepEqual(a: unknown, b: unknown): boolean {
 
 function buildDiff(before: Snapshot, after: Snapshot): Record<string, { de: unknown; para: unknown }> {
   const keys: Array<keyof Snapshot> = [
+    'codVld',
+    'dtSistema',
     'dtPagamento',
     'dtVencimento',
     'sede',

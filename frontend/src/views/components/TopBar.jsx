@@ -91,7 +91,7 @@ function TopBar({
                 onClick={runMenuAction(onHistory)}
                 disabled={disableHistory}
               >
-                Historico
+                Auditoria
               </button>
             ) : null}
             {showReportsButton ? (

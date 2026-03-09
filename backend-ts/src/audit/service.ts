@@ -17,6 +17,7 @@ type AuditRow = {
   actor: string | null;
   occurredAt: string;
   details: string | null;
+  currentCodVld: string | null;
 };
 
 type GlobalHistoryItem = {
@@ -28,6 +29,10 @@ type GlobalHistoryItem = {
   actionLabel: string;
   actor: string | null;
   occurredAt: string;
+  lancamento: string;
+  valor: string;
+  setor: string;
+  despesa: string;
   oldValue: string;
   newValue: string;
   description: string;
@@ -186,6 +191,42 @@ function translateAction(action: string): string {
   return labels[normalized] || action;
 }
 
+function pickChangeValue(
+  changes: Record<string, { de: unknown; para: unknown }> | null,
+  fieldName: string,
+  preferredSide: 'de' | 'para',
+): unknown {
+  if (!changes || !changes[fieldName]) return undefined;
+  const candidate = changes[fieldName][preferredSide];
+  if (candidate !== undefined && candidate !== null && candidate !== '') return candidate;
+  const fallbackSide = preferredSide === 'de' ? 'para' : 'de';
+  return changes[fieldName][fallbackSide];
+}
+
+function pickSnapshotValue(snapshot: Record<string, unknown> | null, fieldName: string): unknown {
+  if (!snapshot) return undefined;
+  return snapshot[fieldName];
+}
+
+function buildLancamentoLabel(
+  row: AuditRow & { row_key: string },
+  snapshot: Record<string, unknown> | null,
+  changes: Record<string, { de: unknown; para: unknown }> | null,
+  preferredSide: 'de' | 'para',
+): string {
+  const codVld =
+    pickChangeValue(changes, 'codVld', preferredSide)
+    ?? pickSnapshotValue(snapshot, 'codVld')
+    ?? row.currentCodVld;
+  if (codVld !== undefined && codVld !== null && codVld !== '') {
+    return String(codVld);
+  }
+  if (row.entityType.toLowerCase() === 'pagamento' && row.entityId) {
+    return `ID ${row.entityId}`;
+  }
+  return '-';
+}
+
 function buildHistoryPresentation(row: AuditRow & { row_key: string }): GlobalHistoryItem {
   const parsed = parseDetails(row.details);
   const directChanges = parsed && isChangeSet(parsed) ? parsed : null;
@@ -202,6 +243,7 @@ function buildHistoryPresentation(row: AuditRow & { row_key: string }): GlobalHi
       ? parsed.descricao.trim()
       : '';
   const actionUpper = String(row.action || '').toUpperCase();
+  const preferredSide = actionUpper === 'EXCLUIDO' ? 'de' : 'para';
 
   let oldValue = '-';
   let newValue = '-';
@@ -240,6 +282,22 @@ function buildHistoryPresentation(row: AuditRow & { row_key: string }): GlobalHi
     description = `${translateEntity(row.entityType)} ${translateAction(row.action).toLowerCase()}${row.entityId ? ` (${row.entityId})` : ''}`;
   }
 
+  const valor =
+    formatValue(
+      pickChangeValue(changes, 'valorTotal', preferredSide)
+      ?? pickSnapshotValue(snapshot, 'valorTotal'),
+    ) || '-';
+  const setor =
+    formatValue(
+      pickChangeValue(changes, 'setor', preferredSide)
+      ?? pickSnapshotValue(snapshot, 'setor'),
+    ) || '-';
+  const despesa =
+    formatValue(
+      pickChangeValue(changes, 'despesa', preferredSide)
+      ?? pickSnapshotValue(snapshot, 'despesa'),
+    ) || '-';
+
   return {
     id: row.row_key,
     entityType: row.entityType,
@@ -249,9 +307,13 @@ function buildHistoryPresentation(row: AuditRow & { row_key: string }): GlobalHi
     actionLabel: translateAction(row.action),
     actor: row.actor,
     occurredAt: row.occurredAt,
+    lancamento: buildLancamentoLabel(row, snapshot, changes, preferredSide),
+    valor,
+    setor,
+    despesa,
     oldValue,
     newValue,
-    description,
+    description: description || '-',
   };
 }
 
@@ -284,8 +346,10 @@ export async function listGlobalHistory(
         h.acao as action,
         h.criado_por as actor,
         h.dt_evento as occurred_at,
-        h.detalhes as details
+        h.detalhes as details,
+        p.cod_vld as current_cod_vld
       from pagamento_historico h
+      left join pagamentos p on p.id = h.pagamento_id
       ${wherePagamento}
     ),
     audit_events as (
@@ -296,7 +360,8 @@ export async function listGlobalHistory(
         a.action,
         a.actor,
         a.occurred_at,
-        a.details
+        a.details,
+        null::text as current_cod_vld
       from app_audit_log a
       ${whereAudit}
     )

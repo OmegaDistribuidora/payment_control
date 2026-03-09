@@ -824,7 +824,7 @@ export function usePagamentosController() {
       return
     }
     if (!canViewHistory) {
-      showError('Historico indisponivel para este usuario.')
+      showError('Auditoria indisponivel para este usuario.')
       return
     }
 
@@ -841,7 +841,7 @@ export function usePagamentosController() {
         setHistoryModalOpen(false)
         showError('Credenciais invalidas.')
       } else {
-        setHistoryError(err.message || 'Erro ao carregar historico.')
+        setHistoryError(err.message || 'Erro ao carregar auditoria.')
       }
     } finally {
       setHistoryLoading(false)
@@ -854,7 +854,7 @@ export function usePagamentosController() {
       return
     }
     if (!canViewHistory) {
-      showError('Historico indisponivel para este usuario.')
+      showError('Auditoria indisponivel para este usuario.')
       return
     }
 
@@ -869,7 +869,7 @@ export function usePagamentosController() {
         setHistoryModalOpen(false)
         showError('Credenciais invalidas.')
       } else {
-        setHistoryError(err.message || 'Erro ao carregar historico.')
+        setHistoryError(err.message || 'Erro ao carregar auditoria.')
       }
     } finally {
       setHistoryLoading(false)
@@ -1170,3 +1170,4 @@ function normalizeText(value) {
     .trim()
     .toLowerCase()
 }
+
