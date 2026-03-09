@@ -371,7 +371,7 @@ export async function listGlobalHistory(
       union all
       select * from audit_events
     ) e
-    order by e.occurred_at desc, e.row_key desc
+    order by e."occurredAt" desc, e."row_key" desc
     limit 50
   `;
 
