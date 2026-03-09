@@ -196,9 +196,11 @@ function PagamentosPage() {
       <UserConfigModal
         isOpen={controller.userModalOpen}
         form={controller.userForm}
+        availableUsers={controller.references?.usuarios || []}
         loading={controller.loading}
         error={controller.error}
         onChange={controller.updateUserForm}
+        onToggleVisibleUser={controller.toggleUserVisibility}
         onSave={controller.saveUser}
         onClose={controller.closeUserModal}
       />

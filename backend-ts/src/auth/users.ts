@@ -9,6 +9,7 @@ export type Role = 'GERENCIA' | 'DIRETORIA' | 'RH' | 'MATRIZ' | 'SOBRAL' | 'CARI
 export type AuthUser = {
   username: string;
   role: Role;
+  visibleUsernames: string[];
 };
 
 type UserRecord = {
@@ -26,7 +27,7 @@ type StoredUserRow = {
 type CreateUserPayload = {
   username?: unknown;
   password?: unknown;
-  role?: unknown;
+  visibleUsernames?: unknown;
 };
 
 const USERS: UserRecord[] = [
@@ -39,8 +40,6 @@ const USERS: UserRecord[] = [
 ];
 
 const USER_MAP = new Map<string, UserRecord>(USERS.map((item) => [item.username.toLowerCase(), item]));
-const ROLE_SET = new Set<Role>(['GERENCIA', 'DIRETORIA', 'RH', 'MATRIZ', 'SOBRAL', 'CARIRI']);
-
 let ensureUsersTablePromise: Promise<void> | null = null;
 
 async function ensureUsersTable(): Promise<void> {
@@ -56,6 +55,16 @@ async function ensureUsersTable(): Promise<void> {
           criado_em timestamp without time zone not null default timezone('America/Fortaleza', now())
         )
       `)
+      .then(() =>
+        pool.query(`
+          create table if not exists app_usuario_visibilidade (
+            owner_username varchar(80) not null,
+            visible_username varchar(80) not null,
+            criado_em timestamp without time zone not null default timezone('America/Fortaleza', now()),
+            primary key (owner_username, visible_username)
+          )
+        `),
+      )
       .then(() => undefined)
       .catch((error) => {
         ensureUsersTablePromise = null;
@@ -85,14 +94,6 @@ function normalizePassword(value: unknown): string {
     badRequest('Senha deve ter entre 6 e 120 caracteres.');
   }
   return password;
-}
-
-function normalizeRole(value: unknown): Role {
-  const role = trimToNull(value)?.toUpperCase() as Role | undefined;
-  if (!role || !ROLE_SET.has(role)) {
-    badRequest('Perfil invalido.');
-  }
-  return role;
 }
 
 function hashPassword(password: string): string {
@@ -133,19 +134,49 @@ async function usernameExists(username: string, client?: PoolClient): Promise<bo
   return Boolean(await findStoredUser(username, client));
 }
 
+async function listVisibleUsernames(username: string, client?: PoolClient): Promise<string[]> {
+  await ensureUsersTable();
+  const executor = client ?? pool;
+  const { rows } = await executor.query<{ visibleUsername: string }>(
+    `
+      select visible_username as "visibleUsername"
+      from app_usuario_visibilidade
+      where lower(owner_username) = lower($1)
+      order by lower(visible_username)
+    `,
+    [username],
+  );
+  return rows.map((row) => row.visibleUsername.toLowerCase());
+}
+
+function normalizeVisibleUsernames(value: unknown, username: string): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const rawItem of value) {
+    const normalized = trimToNull(rawItem)?.toLowerCase();
+    if (!normalized || normalized === username || seen.has(normalized)) continue;
+    seen.add(normalized);
+    items.push(normalized);
+  }
+  return items;
+}
+
 export async function authenticateBasic(username: string, password: string): Promise<AuthUser | null> {
   const normalizedUsername = String(username ?? '').trim().toLowerCase();
   const record = USER_MAP.get(normalizedUsername);
   if (record && record.password === password) {
-    return { username: record.username, role: record.role };
+    return { username: record.username, role: record.role, visibleUsernames: [] };
   }
 
   const stored = await findStoredUser(normalizedUsername).catch(() => null);
   if (!stored) return null;
   if (!verifyPassword(password, stored.passwordHash)) return null;
+  const visibleUsernames = await listVisibleUsernames(stored.username).catch(() => []);
   return {
     username: stored.username,
     role: stored.role,
+    visibleUsernames,
   };
 }
 
@@ -211,7 +242,8 @@ export async function createUser(authUser: AuthUser, payload: CreateUserPayload)
 
   const username = normalizeUsername(payload.username);
   const password = normalizePassword(payload.password);
-  const role = payload.role ? normalizeRole(payload.role) : 'MATRIZ';
+  const role: Role = 'MATRIZ';
+  const visibleUsernames = normalizeVisibleUsernames(payload.visibleUsernames, username);
 
   const client = await pool.connect();
   try {
@@ -229,6 +261,20 @@ export async function createUser(authUser: AuthUser, payload: CreateUserPayload)
       `,
       [username, hashPassword(password), role],
     );
+
+    for (const visibleUsername of visibleUsernames) {
+      if (!(await usernameExists(visibleUsername, client))) {
+        badRequest(`Usuario visivel invalido: ${visibleUsername}.`);
+      }
+      await client.query(
+        `
+          insert into app_usuario_visibilidade (owner_username, visible_username)
+          values ($1, $2)
+          on conflict do nothing
+        `,
+        [username, visibleUsername],
+      );
+    }
 
     await client.query('commit');
     return { username, role };

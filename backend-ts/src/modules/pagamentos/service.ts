@@ -106,6 +106,8 @@ type Snapshot = {
   rateios: Array<{ nome: string; valor: number }>;
 };
 
+type AccessMode = 'read' | 'write';
+
 function nowFortalezaSql(): string {
   return "timezone('America/Fortaleza', now())";
 }
@@ -394,7 +396,40 @@ async function getRateios(client: PoolClient, pagamentoId: number): Promise<Rate
   return rows;
 }
 
-async function getPagamentoById(client: PoolClient, authUser: AuthUser, id: number): Promise<PagamentoRow> {
+async function applyCreatorVisibilityClause(
+  authUser: AuthUser,
+  params: unknown[],
+  columnName: string,
+): Promise<string> {
+  if (isPrivileged(authUser)) {
+    return '';
+  }
+
+  const allowed = [authUser.username, ...(authUser.visibleUsernames || [])]
+    .map((item) => String(item || '').trim().toLowerCase())
+    .filter(Boolean);
+  const uniqueAllowed = [...new Set(allowed)];
+  params.push(uniqueAllowed);
+  return `and lower(${columnName}) = any($${params.length}::text[])`;
+}
+
+async function getPagamentoById(
+  client: PoolClient,
+  authUser: AuthUser,
+  id: number,
+  accessMode: AccessMode = 'read',
+): Promise<PagamentoRow> {
+  const params: unknown[] = [id];
+  const visibilityClause =
+    accessMode === 'read'
+      ? await applyCreatorVisibilityClause(authUser, params, 'p.criado_por')
+      : isPrivileged(authUser)
+        ? ''
+        : (() => {
+            params.push(authUser.username);
+            return `and lower(p.criado_por) = lower($${params.length})`;
+          })();
+
   const sql = `
     select
       p.id,
@@ -418,10 +453,10 @@ async function getPagamentoById(client: PoolClient, authUser: AuthUser, id: numb
       p.descricao
     from pagamentos p
     where p.id = $1
-      and ($2::boolean = true or p.criado_por = $3)
+      ${visibilityClause}
     limit 1
   `;
-  const { rows } = await client.query<PagamentoRow>(sql, [id, isPrivileged(authUser), authUser.username]);
+  const { rows } = await client.query<PagamentoRow>(sql, params);
   const row = rows[0];
   if (!row) {
     notFound('Pagamento nao encontrado');
@@ -495,7 +530,8 @@ function buildWhere(authUser: AuthUser, filtros: Filtros): WhereClause {
   };
 
   if (!isPrivileged(authUser)) {
-    push('p.criado_por = ?', authUser.username);
+    params.push([authUser.username, ...(authUser.visibleUsernames || [])].map((item) => String(item).toLowerCase()));
+    clauses.push(`lower(p.criado_por) = any($${params.length}::text[])`);
   }
 
   const de = ensureOptionalDate(filtros.de, 'Data inicial');
@@ -756,7 +792,7 @@ export async function editarPagamento(authUser: AuthUser, id: number, rawPayload
   try {
     await client.query('begin');
 
-    const beforeRow = await getPagamentoById(client, authUser, id);
+    const beforeRow = await getPagamentoById(client, authUser, id, 'write');
     const beforeRateios = await getRateios(client, id);
     const beforeSnapshot = buildSnapshot(beforeRow, beforeRateios);
 
@@ -811,7 +847,7 @@ export async function editarPagamento(authUser: AuthUser, id: number, rawPayload
 
     await replaceRateios(client, id, consolidado.rateiosFinal);
 
-    const afterRow = await getPagamentoById(client, authUser, id);
+    const afterRow = await getPagamentoById(client, authUser, id, 'write');
     const afterRateios = await getRateios(client, id);
     const afterSnapshot = buildSnapshot(afterRow, afterRateios);
     const diff = buildDiff(beforeSnapshot, afterSnapshot);
@@ -837,7 +873,7 @@ export async function deletarPagamento(authUser: AuthUser, id: number): Promise<
   const client = await pool.connect();
   try {
     await client.query('begin');
-    const row = await getPagamentoById(client, authUser, id);
+    const row = await getPagamentoById(client, authUser, id, 'write');
     const rateios = await getRateios(client, id);
     const snapshot = buildSnapshot(row, rateios);
 

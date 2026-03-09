@@ -29,28 +29,10 @@ export function createDefaultForm() {
 
 export const defaultForm = createDefaultForm()
 
-export const usuarioRoleLabels = {
-  GERENCIA: 'Admin',
-  DIRETORIA: 'Diretoria',
-  RH: 'RH',
-  MATRIZ: 'Matriz',
-  SOBRAL: 'Sobral',
-  CARIRI: 'Cariri',
-}
-
-export const usuarioRoleOptions = [
-  { value: 'MATRIZ', label: 'Matriz' },
-  { value: 'SOBRAL', label: 'Sobral' },
-  { value: 'CARIRI', label: 'Cariri' },
-  { value: 'RH', label: 'RH' },
-  { value: 'DIRETORIA', label: 'Diretoria' },
-  { value: 'GERENCIA', label: 'Admin' },
-]
-
 export const defaultUserForm = {
   username: '',
   password: '',
-  role: 'MATRIZ',
+  visibleUsernames: [],
 }
 
 export const defaultReportState = {

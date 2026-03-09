@@ -897,6 +897,24 @@
   cursor: pointer;
 }
 
+.user-visibility-list {
+  border: 1px solid rgba(8, 42, 70, 0.14);
+  border-radius: 10px;
+  padding: 10px 12px;
+  max-height: 220px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+}
+
+.user-visibility-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-700);
+}
+
 .report-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

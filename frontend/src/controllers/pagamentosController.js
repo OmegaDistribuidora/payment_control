@@ -497,6 +497,19 @@ export function usePagamentosController() {
     setUserForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const toggleUserVisibility = (usernameToToggle) => {
+    setUserForm((prev) => {
+      const current = Array.isArray(prev.visibleUsernames) ? prev.visibleUsernames : []
+      const exists = current.includes(usernameToToggle)
+      return {
+        ...prev,
+        visibleUsernames: exists
+          ? current.filter((item) => item !== usernameToToggle)
+          : [...current, usernameToToggle].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      }
+    })
+  }
+
   const openReportsModal = async () => {
     if (!auth) {
       setAuthModalOpen(true)
@@ -656,7 +669,7 @@ export function usePagamentosController() {
 
     const username = userForm.username?.trim().toLowerCase()
     const password = userForm.password?.trim()
-    const role = userForm.role?.trim() || 'MATRIZ'
+    const visibleUsernames = Array.isArray(userForm.visibleUsernames) ? userForm.visibleUsernames : []
 
     if (!username) {
       showError('Informe o login do usuario.')
@@ -669,7 +682,7 @@ export function usePagamentosController() {
 
     setLoading(true)
     try {
-      await criarUsuario(auth, { username, password, role })
+      await criarUsuario(auth, { username, password, visibleUsernames })
       const bundle = await listarReferencias(auth)
       applyReferenceBundle(bundle)
       saveCachedReferencias(bundle)
@@ -1006,6 +1019,7 @@ export function usePagamentosController() {
     updateDespesaSetor,
     updateDespesaNome,
     updateUserForm,
+    toggleUserVisibility,
     savePagamento,
     saveSetor,
     saveDespesa,
