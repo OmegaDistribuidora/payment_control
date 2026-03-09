@@ -1,14 +1,5 @@
 import { useEffect, useState } from 'react'
 
-const LOGIN_OPTIONS = [
-  { value: 'admin', label: 'admin' },
-  { value: 'diretoria', label: 'diretoria' },
-  { value: 'rh', label: 'rh' },
-  { value: 'omega.matriz', label: 'omega.matriz' },
-  { value: 'omega.sobral', label: 'omega.sobral' },
-  { value: 'omega.cariri', label: 'omega.cariri' },
-]
-
 function EyeIcon() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -31,7 +22,7 @@ function EyeOffIcon() {
   )
 }
 
-function AuthModal({ isOpen, initialAuth, onSubmit }) {
+function AuthModal({ isOpen, initialAuth, loginOptions = [], onSubmit }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -71,7 +62,7 @@ function AuthModal({ isOpen, initialAuth, onSubmit }) {
               onChange={(event) => setUsername(event.target.value)}
             >
               <option value="">Selecione...</option>
-              {LOGIN_OPTIONS.map((option) => (
+              {loginOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

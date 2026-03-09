@@ -12,6 +12,7 @@ import SetorConfigModal from '../components/SetorConfigModal.jsx'
 import DespesaConfigModal from '../components/DespesaConfigModal.jsx'
 import UserConfigModal from '../components/UserConfigModal.jsx'
 import ReportsModal from '../components/ReportsModal.jsx'
+import ChangePasswordModal from '../components/ChangePasswordModal.jsx'
 import { formatDate, formatMonth } from '../../models/pagamentoModel.js'
 import '../../styles/payments.css'
 
@@ -66,6 +67,7 @@ function PagamentosPage() {
         onConfigSetor={controller.openSetorModal}
         onConfigDespesa={controller.openDespesaModal}
         onConfigUser={controller.openUserModal}
+        onChangePassword={controller.openPasswordModal}
         onOpenReports={controller.openReportsModal}
         onToggleView={controller.toggleViewMode}
         viewMode={controller.viewMode}
@@ -169,6 +171,7 @@ function PagamentosPage() {
       <AuthModal
         isOpen={controller.authModalOpen}
         initialAuth={controller.auth}
+        loginOptions={controller.loginOptions}
         onSubmit={controller.handleAuthSave}
       />
       <SetorConfigModal
@@ -210,6 +213,15 @@ function PagamentosPage() {
         loading={controller.reportsLoading}
         error={controller.reportsError}
         onClose={controller.closeReportsModal}
+      />
+      <ChangePasswordModal
+        isOpen={controller.passwordModalOpen}
+        form={controller.passwordForm}
+        loading={controller.loading}
+        error={controller.error}
+        onChange={controller.updatePasswordForm}
+        onSave={controller.savePassword}
+        onClose={controller.closePasswordModal}
       />
     </div>
   )

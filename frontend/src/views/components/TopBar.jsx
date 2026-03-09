@@ -8,6 +8,7 @@ function TopBar({
   onConfigSetor,
   onConfigDespesa,
   onConfigUser,
+  onChangePassword,
   onOpenReports,
   onToggleView,
   viewMode,
@@ -131,6 +132,11 @@ function TopBar({
             <button className="topbar-menu-action" type="button" onClick={runMenuAction(onToggleView)}>
               {viewMode === 'spreadsheet' ? 'Cards' : 'Planilha'}
             </button>
+            {isAuthenticated ? (
+              <button className="topbar-menu-action" type="button" onClick={runMenuAction(onChangePassword)}>
+                Trocar Senha
+              </button>
+            ) : null}
             <button className="topbar-menu-action" type="button" onClick={runMenuAction(onAuthAction)}>
               {isAuthenticated ? 'Logout' : 'Login'}
             </button>

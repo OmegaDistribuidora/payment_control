@@ -32,6 +32,7 @@ function sendUnauthorized(reply: FastifyReply): void {
 export async function requireBasicAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   if (request.method === 'OPTIONS') return;
   if (!request.url.startsWith('/api/')) return;
+  if (request.method === 'GET' && request.url.startsWith('/api/auth/login-options')) return;
 
   const parsed = parseBasicAuthHeader(request.headers.authorization);
   if (!parsed) {

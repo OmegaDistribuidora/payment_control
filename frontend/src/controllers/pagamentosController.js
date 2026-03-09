@@ -4,6 +4,7 @@ import {
   createDefaultForm,
   buildUpdatePayload,
   defaultFilters,
+  defaultPasswordForm,
   defaultReportState,
   defaultUserForm,
   mapApiToForm,
@@ -28,7 +29,7 @@ import {
   salvarDespesaConfig,
   salvarSetorConfig,
 } from '../services/referenciasService.js'
-import { criarUsuario } from '../services/usuariosService.js'
+import { criarUsuario, listarOpcoesLogin, trocarMinhaSenha } from '../services/usuariosService.js'
 
 function buildFiltersForRange(range, currentFilters = defaultFilters) {
   const today = new Date()
@@ -74,6 +75,7 @@ function buildFiltersForRange(range, currentFilters = defaultFilters) {
 export function usePagamentosController() {
   const [auth, setAuth] = useState(loadAuth())
   const [authModalOpen, setAuthModalOpen] = useState(!auth)
+  const [loginOptions, setLoginOptions] = useState([])
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const [periodPreset, setPeriodPreset] = useState('anoAtual')
   const [filters, setFilters] = useState(() => buildFiltersForRange('anoAtual', defaultFilters))
@@ -106,6 +108,8 @@ export function usePagamentosController() {
   const [despesaForm, setDespesaForm] = useState({ setor: '', despesa: '' })
   const [userModalOpen, setUserModalOpen] = useState(false)
   const [userForm, setUserForm] = useState({ ...defaultUserForm })
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({ ...defaultPasswordForm })
   const [reportsModalOpen, setReportsModalOpen] = useState(false)
   const [reportsData, setReportsData] = useState(defaultReportState)
   const [reportsLoading, setReportsLoading] = useState(false)
@@ -134,6 +138,23 @@ export function usePagamentosController() {
   const showError = (message) => {
     setError(message)
     setTimeout(() => setError(''), 4000)
+  }
+
+  const fetchLoginOptions = async () => {
+    try {
+      const response = await listarOpcoesLogin()
+      const options = Array.isArray(response?.content) ? response.content : []
+      setLoginOptions(options.map((item) => ({ value: item.username, label: item.label || item.username })))
+    } catch {
+      setLoginOptions([
+        { value: 'admin', label: 'admin' },
+        { value: 'diretoria', label: 'diretoria' },
+        { value: 'rh', label: 'rh' },
+        { value: 'omega.matriz', label: 'omega.matriz' },
+        { value: 'omega.sobral', label: 'omega.sobral' },
+        { value: 'omega.cariri', label: 'omega.cariri' },
+      ])
+    }
   }
 
   const applyReferenceBundle = (bundle) => {
@@ -373,6 +394,7 @@ export function usePagamentosController() {
     setSetorModalOpen(false)
     setDespesaModalOpen(false)
     setUserModalOpen(false)
+    setPasswordModalOpen(false)
     setReportsModalOpen(false)
     setPeriodPreset('anoAtual')
     setFilters(buildFiltersForRange('anoAtual', defaultFilters))
@@ -384,6 +406,10 @@ export function usePagamentosController() {
     setReportsData(defaultReportState)
     setReportsError('')
   }
+
+  useEffect(() => {
+    fetchLoginOptions()
+  }, [])
 
   useEffect(() => {
     if (auth) {
@@ -495,6 +521,24 @@ export function usePagamentosController() {
 
   const updateUserForm = (key, value) => {
     setUserForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const openPasswordModal = () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    setPasswordForm({ ...defaultPasswordForm })
+    setPasswordModalOpen(true)
+    setError('')
+  }
+
+  const closePasswordModal = () => {
+    setPasswordModalOpen(false)
+  }
+
+  const updatePasswordForm = (key, value) => {
+    setPasswordForm((prev) => ({ ...prev, [key]: value }))
   }
 
   const toggleUserVisibility = (usernameToToggle) => {
@@ -686,6 +730,7 @@ export function usePagamentosController() {
       const bundle = await listarReferencias(auth)
       applyReferenceBundle(bundle)
       saveCachedReferencias(bundle)
+      await fetchLoginOptions()
       setUserModalOpen(false)
       setUserForm({ ...defaultUserForm })
     } catch (err) {
@@ -694,6 +739,43 @@ export function usePagamentosController() {
         showError('Credenciais invalidas.')
       } else {
         showError(err.message || 'Erro ao criar usuario.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const savePassword = async () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+
+    const currentPassword = passwordForm.currentPassword?.trim()
+    const newPassword = passwordForm.newPassword?.trim()
+    if (!currentPassword) {
+      showError('Informe a senha atual.')
+      return
+    }
+    if (!newPassword) {
+      showError('Informe a nova senha.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await trocarMinhaSenha(auth, { currentPassword, newPassword })
+      const updatedAuth = { ...auth, password: newPassword }
+      saveAuth(updatedAuth)
+      setAuth(updatedAuth)
+      setPasswordModalOpen(false)
+      setPasswordForm({ ...defaultPasswordForm })
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        showError(err.message || 'Erro ao trocar senha.')
       }
     } finally {
       setLoading(false)
@@ -950,6 +1032,7 @@ export function usePagamentosController() {
     canCreateUser,
     canViewReports,
     canViewHistory,
+    loginOptions,
     canCreateSetor,
     canCreateDespesa,
     authModalOpen,
@@ -970,6 +1053,8 @@ export function usePagamentosController() {
     despesaForm,
     userModalOpen,
     userForm,
+    passwordModalOpen,
+    passwordForm,
     reportsModalOpen,
     reportsData,
     reportsLoading,
@@ -1002,6 +1087,7 @@ export function usePagamentosController() {
     openSetorModal,
     openDespesaModal,
     openUserModal,
+    openPasswordModal,
     openReportsModal,
     openEditModal,
     openHistoryModal,
@@ -1009,6 +1095,7 @@ export function usePagamentosController() {
     closeSetorModal,
     closeDespesaModal,
     closeUserModal,
+    closePasswordModal,
     closeReportsModal,
     closeHistoryModal,
     updateForm,
@@ -1019,11 +1106,13 @@ export function usePagamentosController() {
     updateDespesaSetor,
     updateDespesaNome,
     updateUserForm,
+    updatePasswordForm,
     toggleUserVisibility,
     savePagamento,
     saveSetor,
     saveDespesa,
     saveUser,
+    savePassword,
     removePagamento,
     goNextPage,
     goPrevPage,

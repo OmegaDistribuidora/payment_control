@@ -35,6 +35,11 @@ export const defaultUserForm = {
   visibleUsernames: [],
 }
 
+export const defaultPasswordForm = {
+  currentPassword: '',
+  newPassword: '',
+}
+
 export const defaultReportState = {
   content: [],
   totalGeral: 0,

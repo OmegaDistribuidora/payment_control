@@ -30,6 +30,11 @@ type CreateUserPayload = {
   visibleUsernames?: unknown;
 };
 
+type ChangePasswordPayload = {
+  currentPassword?: unknown;
+  newPassword?: unknown;
+};
+
 const USERS: UserRecord[] = [
   { username: 'admin', password: 'Omega@123', role: 'GERENCIA' },
   { username: 'diretoria', password: 'Diretoria@123', role: 'DIRETORIA' },
@@ -127,6 +132,16 @@ async function findStoredUser(username: string, client?: PoolClient): Promise<St
   return rows[0] ?? null;
 }
 
+function dedupeUserList(items: Array<{ username: string; role: Role; origem: 'padrao' | 'custom' }>) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.username.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function usernameExists(username: string, client?: PoolClient): Promise<boolean> {
   if (USER_MAP.has(username.toLowerCase())) {
     return true;
@@ -164,20 +179,20 @@ function normalizeVisibleUsernames(value: unknown, username: string): string[] {
 
 export async function authenticateBasic(username: string, password: string): Promise<AuthUser | null> {
   const normalizedUsername = String(username ?? '').trim().toLowerCase();
-  const record = USER_MAP.get(normalizedUsername);
-  if (record && record.password === password) {
-    return { username: record.username, role: record.role, visibleUsernames: [] };
+  const stored = await findStoredUser(normalizedUsername).catch(() => null);
+  if (stored) {
+    if (!verifyPassword(password, stored.passwordHash)) return null;
+    const visibleUsernames = await listVisibleUsernames(stored.username).catch(() => []);
+    return {
+      username: stored.username,
+      role: stored.role,
+      visibleUsernames,
+    };
   }
 
-  const stored = await findStoredUser(normalizedUsername).catch(() => null);
-  if (!stored) return null;
-  if (!verifyPassword(password, stored.passwordHash)) return null;
-  const visibleUsernames = await listVisibleUsernames(stored.username).catch(() => []);
-  return {
-    username: stored.username,
-    role: stored.role,
-    visibleUsernames,
-  };
+  const record = USER_MAP.get(normalizedUsername);
+  if (!record || record.password !== password) return null;
+  return { username: record.username, role: record.role, visibleUsernames: [] };
 }
 
 export function isPrivileged(user: AuthUser): boolean {
@@ -226,13 +241,17 @@ export async function listAvailableUsers(): Promise<Array<{ username: string; ro
     ...customUsers,
   ];
 
-  const seen = new Set<string>();
-  return all.filter((item) => {
-    const key = item.username.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  return dedupeUserList(all);
+}
+
+export async function listLoginOptions(): Promise<Array<{ username: string; label: string }>> {
+  const users = await listAvailableUsers();
+  return users
+    .map((item) => ({
+      username: item.username,
+      label: item.username,
+    }))
+    .sort((a, b) => a.username.localeCompare(b.username, 'pt-BR'));
 }
 
 export async function createUser(authUser: AuthUser, payload: CreateUserPayload): Promise<{ username: string; role: Role }> {
@@ -278,6 +297,52 @@ export async function createUser(authUser: AuthUser, payload: CreateUserPayload)
 
     await client.query('commit');
     return { username, role };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function changeOwnPassword(
+  authUser: AuthUser,
+  payload: ChangePasswordPayload,
+): Promise<{ username: string }> {
+  const currentPassword = normalizePassword(payload.currentPassword);
+  const newPassword = normalizePassword(payload.newPassword);
+  if (currentPassword === newPassword) {
+    badRequest('A nova senha deve ser diferente da senha atual.');
+  }
+
+  const validated = await authenticateBasic(authUser.username, currentPassword);
+  if (!validated) {
+    badRequest('Senha atual invalida.');
+  }
+
+  const defaultRecord = USER_MAP.get(authUser.username.toLowerCase());
+  const client = await pool.connect();
+  try {
+    await ensureUsersTable();
+    await client.query('begin');
+
+    const existing = await findStoredUser(authUser.username, client);
+    const role = existing?.role ?? defaultRecord?.role ?? authUser.role;
+    await client.query(
+      `
+        insert into app_usuario (username, password_hash, role, ativo)
+        values ($1, $2, $3, true)
+        on conflict (username)
+        do update set
+          password_hash = excluded.password_hash,
+          role = excluded.role,
+          ativo = true
+      `,
+      [authUser.username, hashPassword(newPassword), role],
+    );
+
+    await client.query('commit');
+    return { username: authUser.username };
   } catch (error) {
     await client.query('rollback');
     throw error;
