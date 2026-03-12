@@ -37,6 +37,7 @@ export type ReferenceBundle = {
 };
 
 const CACHE_TTL_MS = 1000 * 60 * 5;
+const DEFAULT_EMPRESAS = ['J2A'];
 let cachedBundle: ReferenceBundle | null = null;
 let cacheAt = 0;
 
@@ -92,6 +93,7 @@ export async function listDespesas(codMt?: number): Promise<DespesaItem[]> {
 }
 
 export async function listEmpresas(): Promise<ReferenceItem[]> {
+  await ensureDefaultEmpresas();
   const cached = getCachedBundle();
   return cached ? cached.empresas : listSimple('ref_empresa');
 }
@@ -192,6 +194,29 @@ async function existsDespesaByNome(client: PoolClient, nome: string): Promise<bo
 async function nextCodigo(client: PoolClient, table: string): Promise<number> {
   const { rows } = await client.query<{ proximo: number }>(`select coalesce(max(codigo), 0) + 1 as proximo from ${table}`);
   return rows[0]?.proximo ?? 1;
+}
+
+export async function ensureDefaultEmpresas(client?: PoolClient): Promise<void> {
+  const ownsClient = !client;
+  const executor = client ?? (await pool.connect());
+  let inserted = false;
+
+  try {
+    for (const nome of DEFAULT_EMPRESAS) {
+      const codigoExistente = await findCodigoByNome(executor, 'ref_empresa', nome);
+      if (codigoExistente) continue;
+      const codigo = await nextCodigo(executor, 'ref_empresa');
+      await executor.query('insert into ref_empresa (codigo, nome) values ($1, $2)', [codigo, nome]);
+      inserted = true;
+    }
+  } finally {
+    if (inserted) {
+      clearCache();
+    }
+    if (ownsClient) {
+      executor.release();
+    }
+  }
 }
 
 export async function salvarSetorConfig(authUser: AuthUser, payload: unknown): Promise<ReferenceBundle> {
