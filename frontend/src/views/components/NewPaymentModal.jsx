@@ -466,6 +466,11 @@ function buildRateioItems(dotacao, references, form) {
   if (!dotacao || !references) return []
   const norm = dotacao.toLowerCase()
   let items = []
+  const empresaFornecedorAtual = String(form?.empresaFornecedor || '').trim()
+  const esconderDestinoComposto =
+    (norm === 'empresa' || norm === 'empr/fornecedor' || norm === 'empresa/fornecedor') &&
+    empresaFornecedorAtual.includes(',')
+
   if (norm === 'empresa') items = references.empresas || []
   if (norm === 'fornecedor') items = references.fornecedores || []
   if (norm === 'empr/fornecedor' || norm === 'empresa/fornecedor') {
@@ -479,7 +484,7 @@ function buildRateioItems(dotacao, references, form) {
         .filter((item) => item?.nome)
         .map((item, index) => ({ codigo: `extra-${index}`, nome: item.nome }))
     : []
-  if (form?.empresaFornecedor) {
+  if (empresaFornecedorAtual && !esconderDestinoComposto) {
     extras.push({ codigo: 'empresa-fornecedor-atual', nome: form.empresaFornecedor })
   }
   items = [...items, ...extras]

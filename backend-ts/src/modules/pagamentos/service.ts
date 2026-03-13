@@ -602,15 +602,22 @@ function buildRateioSplitCte(where: WhereClause): { sql: string; params: unknown
           p.valor_total,
           case
             when p.dotacao_norm = 'funcionario' then 0
-            when coalesce(rateio.rateio_total, 0) > 0 then coalesce(rateio.total_empresa_rateio, 0)
-            when destino.eh_empresa then p.valor_total
-            else 0
+            else greatest(
+              p.valor_total - (
+                case
+                  when rateio.tem_rateio then coalesce(rateio.total_fornecedor_rateio, 0)
+                  when destino.eh_fornecedor then p.valor_total
+                  else 0
+                end
+              ),
+              0
+            )
           end as total_empresa,
           case
             when p.dotacao_norm = 'funcionario' then 0
-            when coalesce(rateio.rateio_total, 0) > 0 then greatest(p.valor_total - coalesce(rateio.total_empresa_rateio, 0), 0)
-            when destino.eh_empresa then 0
-            else p.valor_total
+            when rateio.tem_rateio then coalesce(rateio.total_fornecedor_rateio, 0)
+            when destino.eh_fornecedor then p.valor_total
+            else 0
           end as total_fornecedor,
           case
             when p.dotacao_norm = 'funcionario' then p.valor_total
@@ -619,21 +626,21 @@ function buildRateioSplitCte(where: WhereClause): { sql: string; params: unknown
         from filtered_pagamentos p
         left join lateral (
           select
-            coalesce(sum(pr.valor), 0) as rateio_total,
+            count(*) > 0 as tem_rateio,
             coalesce(sum(case when exists (
               select 1
-              from ref_empresa re
-              where lower(re.nome) = lower(pr.nome)
-            ) then pr.valor else 0 end), 0) as total_empresa_rateio
+              from ref_fornecedor rf
+              where lower(rf.nome) = lower(pr.nome)
+            ) then pr.valor else 0 end), 0) as total_fornecedor_rateio
           from pagamento_rateio pr
           where pr.pagamento_id = p.id
         ) rateio on true
         left join lateral (
           select exists (
             select 1
-            from ref_empresa re
-            where lower(re.nome) = lower(coalesce(p.empresa_fornecedor, ''))
-          ) as eh_empresa
+            from ref_fornecedor rf
+            where lower(rf.nome) = lower(coalesce(p.empresa_fornecedor, ''))
+          ) as eh_fornecedor
         ) destino on true
       )
     `,

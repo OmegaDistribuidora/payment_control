@@ -207,6 +207,7 @@ export function toInputDate(value) {
 }
 
 export function mapApiToForm(pagamento) {
+  const rateiosSanitizados = sanitizeImportedCompositeRateios(pagamento)
   return {
     dtPagamento: toInputDate(pagamento.dtPagamento),
     dtVencimento: toInputDate(pagamento.dtVencimento || pagamento.dtPagamento),
@@ -219,13 +220,36 @@ export function mapApiToForm(pagamento) {
     setorPagamento: pagamento.setorPagamento ?? '',
     valorTotal: formatCurrencyInput(pagamento.valorTotal ?? ''),
     descricao: pagamento.descricao ?? '',
-    rateios: Array.isArray(pagamento.rateios)
-      ? pagamento.rateios.map((item) => ({
+    rateios: rateiosSanitizados.map((item) => ({
           nome: item.nome,
           valor: formatCurrencyInput(item.valor),
-        }))
-      : [],
+        })),
   }
+}
+
+function sanitizeImportedCompositeRateios(pagamento) {
+  if (!Array.isArray(pagamento?.rateios)) return []
+
+  const rateios = pagamento.rateios
+  const empresaFornecedor = String(pagamento?.empresaFornecedor || '').trim()
+  const dotacao = String(pagamento?.dotacao || '')
+    .trim()
+    .toLowerCase()
+
+  const permiteEmpresa =
+    dotacao === 'empresa' || dotacao === 'empr/fornecedor' || dotacao === 'empresa/fornecedor'
+
+  if (
+    permiteEmpresa &&
+    rateios.length === 1 &&
+    empresaFornecedor &&
+    rateios[0]?.nome === empresaFornecedor &&
+    empresaFornecedor.includes(',')
+  ) {
+    return []
+  }
+
+  return rateios
 }
 
 function buildRateiosPayload(rateios) {
