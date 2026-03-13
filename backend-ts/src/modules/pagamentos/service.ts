@@ -558,8 +558,8 @@ function buildWhere(authUser: AuthUser, filtros: Filtros): WhereClause {
 
   const de = ensureOptionalDate(filtros.de, 'Data inicial');
   const ate = ensureOptionalDate(filtros.ate, 'Data final');
-  if (de) push('coalesce(p.dt_vencimento, p.dt_pagamento) >= ?::date', de);
-  if (ate) push('coalesce(p.dt_vencimento, p.dt_pagamento) <= ?::date', ate);
+  if (de) push('p.dt_pagamento >= ?::date', de);
+  if (ate) push('p.dt_pagamento <= ?::date', ate);
 
   const usuario = normalizeText(filtros.usuario);
   const setor = normalizeText(filtros.setor);
