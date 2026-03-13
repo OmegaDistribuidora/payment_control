@@ -55,6 +55,16 @@ type Filtros = {
   q?: string;
 };
 
+type RelatorioRow = {
+  sede: string | null;
+  setor: string | null;
+  despesa: string | null;
+  quantidade: string;
+  total: string;
+  totalEmpresa: string;
+  totalFornecedor: string;
+};
+
 type WhereClause = {
   sql: string;
   params: unknown[];
@@ -574,6 +584,64 @@ function buildWhere(authUser: AuthUser, filtros: Filtros): WhereClause {
   };
 }
 
+function buildRateioSplitCte(where: WhereClause): { sql: string; params: unknown[] } {
+  return {
+    sql: `
+      with filtered_pagamentos as (
+        select p.*
+        from pagamentos p
+        ${where.sql}
+      ),
+      pagamento_split as (
+        select
+          p.id,
+          p.sede,
+          p.setor,
+          p.despesa,
+          p.valor_total,
+          coalesce(
+            nullif((
+              select sum(pr.valor)
+              from pagamento_rateio pr
+              join ref_empresa re on lower(re.nome) = lower(pr.nome)
+              where pr.pagamento_id = p.id
+            ), 0),
+            case
+              when p.dotacao_norm = 'empresa' then p.valor_total
+              when p.dotacao_norm in ('empresa/fornecedor', 'empr/fornecedor')
+                and exists (
+                  select 1
+                  from ref_empresa re
+                  where lower(re.nome) = lower(coalesce(p.empresa_fornecedor, ''))
+                ) then p.valor_total
+              else 0
+            end
+          ) as total_empresa,
+          coalesce(
+            nullif((
+              select sum(pr.valor)
+              from pagamento_rateio pr
+              join ref_fornecedor rf on lower(rf.nome) = lower(pr.nome)
+              where pr.pagamento_id = p.id
+            ), 0),
+            case
+              when p.dotacao_norm = 'fornecedor' then p.valor_total
+              when p.dotacao_norm in ('empresa/fornecedor', 'empr/fornecedor')
+                and exists (
+                  select 1
+                  from ref_fornecedor rf
+                  where lower(rf.nome) = lower(coalesce(p.empresa_fornecedor, ''))
+                ) then p.valor_total
+              else 0
+            end
+          ) as total_fornecedor
+        from filtered_pagamentos p
+      )
+    `,
+    params: where.params,
+  };
+}
+
 export async function listarMeus(
   authUser: AuthUser,
   filtros: Filtros,
@@ -631,13 +699,28 @@ export async function listarMeus(
   };
 }
 
-export async function somarMeus(authUser: AuthUser, filtros: Filtros): Promise<{ total: number }> {
+export async function somarMeus(
+  authUser: AuthUser,
+  filtros: Filtros,
+): Promise<{ total: number; totalEmpresa: number; totalFornecedor: number }> {
   const where = buildWhere(authUser, filtros);
-  const { rows } = await pool.query<{ total: string }>(
-    `select coalesce(sum(p.valor_total), 0) as total from pagamentos p ${where.sql}`,
-    where.params,
+  const split = buildRateioSplitCte(where);
+  const { rows } = await pool.query<{ total: string; totalEmpresa: string; totalFornecedor: string }>(
+    `
+      ${split.sql}
+      select
+        coalesce(sum(valor_total), 0) as total,
+        coalesce(sum(total_empresa), 0) as "totalEmpresa",
+        coalesce(sum(total_fornecedor), 0) as "totalFornecedor"
+      from pagamento_split
+    `,
+    split.params,
   );
-  return { total: Number(rows[0]?.total ?? 0) };
+  return {
+    total: Number(rows[0]?.total ?? 0),
+    totalEmpresa: Number(rows[0]?.totalEmpresa ?? 0),
+    totalFornecedor: Number(rows[0]?.totalFornecedor ?? 0),
+  };
 }
 
 export async function buscarMeu(authUser: AuthUser, id: number): Promise<Record<string, unknown>> {
@@ -931,34 +1014,113 @@ export async function normalizeCampos(authUser: AuthUser): Promise<{ updated: nu
 export async function relatorioTotalPorSede(
   authUser: AuthUser,
   filtros: Filtros,
-): Promise<{ content: Array<{ sede: string; quantidade: number; total: number }>; totalGeral: number }> {
+): Promise<{
+  content: Array<{ sede: string; quantidade: number; total: number; totalEmpresa: number; totalFornecedor: number }>;
+  totalGeral: number;
+  totalEmpresa: number;
+  totalFornecedor: number;
+}> {
   if (authUser.username.toLowerCase() !== 'admin') {
     forbidden('Acao permitida somente para admin.');
   }
 
   const where = buildWhere(authUser, filtros);
-  const { rows } = await pool.query<{ sede: string | null; quantidade: string; total: string }>(
+  const split = buildRateioSplitCte(where);
+  const { rows } = await pool.query<RelatorioRow>(
     `
+      ${split.sql}
       select
-        coalesce(nullif(trim(p.sede), ''), 'Sem sede') as sede,
+        coalesce(nullif(trim(sede), ''), 'Sem sede') as sede,
+        null::text as setor,
+        null::text as despesa,
         count(*)::bigint as quantidade,
-        coalesce(sum(p.valor_total), 0) as total
-      from pagamentos p
-      ${where.sql}
-      group by coalesce(nullif(trim(p.sede), ''), 'Sem sede')
-      order by lower(coalesce(nullif(trim(p.sede), ''), 'Sem sede'))
+        coalesce(sum(valor_total), 0) as total,
+        coalesce(sum(total_empresa), 0) as "totalEmpresa",
+        coalesce(sum(total_fornecedor), 0) as "totalFornecedor"
+      from pagamento_split
+      group by coalesce(nullif(trim(sede), ''), 'Sem sede')
+      order by lower(coalesce(nullif(trim(sede), ''), 'Sem sede'))
     `,
-    where.params,
+    split.params,
   );
 
   const content = rows.map((row) => ({
     sede: row.sede ?? 'Sem sede',
     quantidade: Number(row.quantidade ?? 0),
     total: Number(row.total ?? 0),
+    totalEmpresa: Number(row.totalEmpresa ?? 0),
+    totalFornecedor: Number(row.totalFornecedor ?? 0),
   }));
 
   return {
     content,
     totalGeral: Number(content.reduce((sum, item) => sum + item.total, 0).toFixed(2)),
+    totalEmpresa: Number(content.reduce((sum, item) => sum + item.totalEmpresa, 0).toFixed(2)),
+    totalFornecedor: Number(content.reduce((sum, item) => sum + item.totalFornecedor, 0).toFixed(2)),
+  };
+}
+
+export async function relatorioArvore(
+  authUser: AuthUser,
+  filtros: Filtros,
+): Promise<{
+  content: Array<{
+    sede: string;
+    setor: string;
+    despesa: string;
+    quantidade: number;
+    total: number;
+    totalEmpresa: number;
+    totalFornecedor: number;
+  }>;
+  totalGeral: number;
+  totalEmpresa: number;
+  totalFornecedor: number;
+}> {
+  if (authUser.username.toLowerCase() !== 'admin') {
+    forbidden('Acao permitida somente para admin.');
+  }
+
+  const where = buildWhere(authUser, filtros);
+  const split = buildRateioSplitCte(where);
+  const { rows } = await pool.query<RelatorioRow>(
+    `
+      ${split.sql}
+      select
+        coalesce(nullif(trim(sede), ''), 'Sem sede') as sede,
+        coalesce(nullif(trim(setor), ''), 'Sem setor') as setor,
+        coalesce(nullif(trim(despesa), ''), 'Sem despesa') as despesa,
+        count(*)::bigint as quantidade,
+        coalesce(sum(valor_total), 0) as total,
+        coalesce(sum(total_empresa), 0) as "totalEmpresa",
+        coalesce(sum(total_fornecedor), 0) as "totalFornecedor"
+      from pagamento_split
+      group by
+        coalesce(nullif(trim(sede), ''), 'Sem sede'),
+        coalesce(nullif(trim(setor), ''), 'Sem setor'),
+        coalesce(nullif(trim(despesa), ''), 'Sem despesa')
+      order by
+        lower(coalesce(nullif(trim(sede), ''), 'Sem sede')),
+        lower(coalesce(nullif(trim(setor), ''), 'Sem setor')),
+        lower(coalesce(nullif(trim(despesa), ''), 'Sem despesa'))
+    `,
+    split.params,
+  );
+
+  const content = rows.map((row) => ({
+    sede: row.sede ?? 'Sem sede',
+    setor: row.setor ?? 'Sem setor',
+    despesa: row.despesa ?? 'Sem despesa',
+    quantidade: Number(row.quantidade ?? 0),
+    total: Number(row.total ?? 0),
+    totalEmpresa: Number(row.totalEmpresa ?? 0),
+    totalFornecedor: Number(row.totalFornecedor ?? 0),
+  }));
+
+  return {
+    content,
+    totalGeral: Number(content.reduce((sum, item) => sum + item.total, 0).toFixed(2)),
+    totalEmpresa: Number(content.reduce((sum, item) => sum + item.totalEmpresa, 0).toFixed(2)),
+    totalFornecedor: Number(content.reduce((sum, item) => sum + item.totalFornecedor, 0).toFixed(2)),
   };
 }

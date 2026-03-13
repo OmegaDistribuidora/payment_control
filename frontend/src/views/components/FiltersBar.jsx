@@ -22,8 +22,10 @@ function FilterIcon() {
   )
 }
 
-function FiltersBar({ filters, userLabel, totalValue, filtersOpen, loading, onReload, onToggleFilters }) {
-  const totalFormatted = formatCurrency(totalValue)
+function FiltersBar({ filters, userLabel, totalSummary, filtersOpen, loading, onReload, onToggleFilters }) {
+  const totalFormatted = formatCurrency(totalSummary?.total || 0)
+  const totalEmpresaFormatted = formatCurrency(totalSummary?.totalEmpresa || 0)
+  const totalFornecedorFormatted = formatCurrency(totalSummary?.totalFornecedor || 0)
   const inicio = filters?.de ? formatDate(filters.de) : '--/--/----'
   const fim = filters?.ate ? formatDate(filters.ate) : '--/--/----'
   const periodo = `${inicio} ate ${fim}`
@@ -41,6 +43,8 @@ function FiltersBar({ filters, userLabel, totalValue, filtersOpen, loading, onRe
       <div className="filter-card total-card">
         <div className="filter-label">Total Lancado - Periodo</div>
         <div className="filter-value">{totalFormatted || 'R$ --'}</div>
+        <div className="filter-split-value">Empresas: {totalEmpresaFormatted || 'R$ --'}</div>
+        <div className="filter-split-value">Fornecedores: {totalFornecedorFormatted || 'R$ --'}</div>
       </div>
       <div className="filter-tools">
         <button

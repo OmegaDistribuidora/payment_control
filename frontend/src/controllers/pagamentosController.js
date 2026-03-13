@@ -5,7 +5,6 @@ import {
   buildUpdatePayload,
   defaultFilters,
   defaultPasswordForm,
-  defaultReportState,
   defaultUserForm,
   mapApiToForm,
   parseCurrency,
@@ -14,6 +13,7 @@ import {
 import { clearAuth, loadAuth, saveAuth } from '../models/authModel.js'
 import {
   buscarPagamento,
+  carregarRelatorioArvore,
   criarPagamento,
   deletarPagamento,
   editarPagamento,
@@ -23,13 +23,28 @@ import {
   somarPagamentos,
 } from '../services/pagamentosService.js'
 import {
+  inativarDespesa,
+  inativarEmpresa,
+  inativarFornecedor,
+  inativarSetor,
+  listarDespesasGestao,
+  listarEmpresasGestao,
+  listarFornecedoresGestao,
   listarReferencias,
   listarReferenciasCached,
+  listarSetoresGestao,
   saveCachedReferencias,
+  salvarEmpresaFornecedorConfig,
   salvarDespesaConfig,
   salvarSetorConfig,
 } from '../services/referenciasService.js'
-import { criarUsuario, listarOpcoesLogin, trocarMinhaSenha } from '../services/usuariosService.js'
+import {
+  criarUsuario,
+  inativarUsuario,
+  listarOpcoesLogin,
+  listarUsuariosGestao,
+  trocarMinhaSenha,
+} from '../services/usuariosService.js'
 
 function buildFiltersForRange(range, currentFilters = defaultFilters) {
   const today = new Date()
@@ -72,10 +87,56 @@ function buildFiltersForRange(range, currentFilters = defaultFilters) {
   }
 }
 
+function defaultSetorForm() {
+  return {
+    mode: 'create',
+    nome: '',
+    despesas: [],
+    targetNome: '',
+  }
+}
+
+function defaultDespesaConfigForm() {
+  return {
+    mode: 'create',
+    setor: '',
+    despesa: '',
+    targetNome: '',
+  }
+}
+
+function defaultEntityForm() {
+  return {
+    mode: 'create',
+    tipo: 'empresa',
+    nome: '',
+    targetNome: '',
+  }
+}
+
+function defaultTotalsSummary() {
+  return {
+    total: 0,
+    totalEmpresa: 0,
+    totalFornecedor: 0,
+  }
+}
+
+function defaultReportsViewState() {
+  return {
+    sedes: [],
+    arvore: [],
+    totalGeral: 0,
+    totalEmpresa: 0,
+    totalFornecedor: 0,
+  }
+}
+
 export function usePagamentosController() {
   const [auth, setAuth] = useState(loadAuth())
   const [authModalOpen, setAuthModalOpen] = useState(!auth)
   const [loginOptions, setLoginOptions] = useState([])
+  const [currentPage, setCurrentPage] = useState('payments')
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const [periodPreset, setPeriodPreset] = useState('anoAtual')
   const [filters, setFilters] = useState(() => buildFiltersForRange('anoAtual', defaultFilters))
@@ -91,6 +152,11 @@ export function usePagamentosController() {
     usuarios: [],
     setorDespesas: {},
   })
+  const [managedUsers, setManagedUsers] = useState([])
+  const [managedSetores, setManagedSetores] = useState([])
+  const [managedDespesas, setManagedDespesas] = useState([])
+  const [managedEmpresas, setManagedEmpresas] = useState([])
+  const [managedFornecedores, setManagedFornecedores] = useState([])
   const [pageInfo, setPageInfo] = useState({
     number: 0,
     size: 20,
@@ -103,17 +169,20 @@ export function usePagamentosController() {
   const [selectedId, setSelectedId] = useState(null)
   const [modal, setModal] = useState({ open: false, mode: 'create' })
   const [setorModalOpen, setSetorModalOpen] = useState(false)
-  const [setorForm, setSetorForm] = useState({ nome: '', despesas: [] })
+  const [setorForm, setSetorForm] = useState(defaultSetorForm())
   const [despesaModalOpen, setDespesaModalOpen] = useState(false)
-  const [despesaForm, setDespesaForm] = useState({ setor: '', despesa: '' })
+  const [despesaForm, setDespesaForm] = useState(defaultDespesaConfigForm())
   const [userModalOpen, setUserModalOpen] = useState(false)
   const [userForm, setUserForm] = useState({ ...defaultUserForm })
+  const [entityModalOpen, setEntityModalOpen] = useState(false)
+  const [entityForm, setEntityForm] = useState(defaultEntityForm())
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
   const [passwordForm, setPasswordForm] = useState({ ...defaultPasswordForm })
-  const [reportsModalOpen, setReportsModalOpen] = useState(false)
-  const [reportsData, setReportsData] = useState(defaultReportState)
+  const [reportsData, setReportsData] = useState(defaultReportsViewState())
   const [reportsLoading, setReportsLoading] = useState(false)
   const [reportsError, setReportsError] = useState('')
+  const [selectedReportSede, setSelectedReportSede] = useState('')
+  const [selectedReportSetor, setSelectedReportSetor] = useState('')
   const [form, setForm] = useState(() => createDefaultForm())
   const [historyModalOpen, setHistoryModalOpen] = useState(false)
   const [historyDate, setHistoryDate] = useState('')
@@ -122,7 +191,7 @@ export function usePagamentosController() {
   const [historyError, setHistoryError] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [totalValue, setTotalValue] = useState(0)
+  const [totalSummary, setTotalSummary] = useState(defaultTotalsSummary())
   const [pageCache, setPageCache] = useState({})
   const [prefetchCache, setPrefetchCache] = useState({})
   const fetchAbortRef = useRef(null)
@@ -174,6 +243,81 @@ export function usePagamentosController() {
     return next
   }
 
+  const refreshReferences = async (authData = auth) => {
+    if (!authData) return null
+    const bundle = await listarReferencias(authData)
+    applyReferenceBundle(bundle)
+    saveCachedReferencias(bundle)
+    return bundle
+  }
+
+  const fetchManagedLists = async (authData = auth) => {
+    if (!authData || authData.username?.toLowerCase() !== 'admin') return
+    const [usersResponse, setoresResponse, despesasResponse, empresasResponse, fornecedoresResponse] = await Promise.all([
+      listarUsuariosGestao(authData),
+      listarSetoresGestao(authData),
+      listarDespesasGestao(authData),
+      listarEmpresasGestao(authData),
+      listarFornecedoresGestao(authData),
+    ])
+    setManagedUsers(Array.isArray(usersResponse?.content) ? usersResponse.content : [])
+    setManagedSetores(Array.isArray(setoresResponse?.content) ? setoresResponse.content : [])
+    setManagedDespesas(Array.isArray(despesasResponse?.content) ? despesasResponse.content : [])
+    setManagedEmpresas(Array.isArray(empresasResponse?.content) ? empresasResponse.content : [])
+    setManagedFornecedores(Array.isArray(fornecedoresResponse?.content) ? fornecedoresResponse.content : [])
+  }
+
+  const loadReports = async ({ authOverride, filtersOverride } = {}) => {
+    const authData = authOverride || auth
+    const activeFilters = filtersOverride || filters
+    if (!authData) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (authData.username?.toLowerCase() !== 'admin') {
+      showError('Somente admin pode visualizar relatorios.')
+      return
+    }
+
+    setReportsLoading(true)
+    setReportsError('')
+    try {
+      const [sedesResponse, arvoreResponse] = await Promise.all([
+        carregarRelatorioSedes(authData, activeFilters),
+        carregarRelatorioArvore(authData, activeFilters),
+      ])
+      const sedes = Array.isArray(sedesResponse?.content) ? sedesResponse.content : []
+      const arvore = Array.isArray(arvoreResponse?.content) ? arvoreResponse.content : []
+
+      setReportsData({
+        sedes,
+        arvore,
+        totalGeral: Number(sedesResponse?.totalGeral ?? arvoreResponse?.totalGeral ?? 0),
+        totalEmpresa: Number(sedesResponse?.totalEmpresa ?? arvoreResponse?.totalEmpresa ?? 0),
+        totalFornecedor: Number(sedesResponse?.totalFornecedor ?? arvoreResponse?.totalFornecedor ?? 0),
+      })
+      setTotalSummary({
+        total: Number(sedesResponse?.totalGeral ?? arvoreResponse?.totalGeral ?? 0),
+        totalEmpresa: Number(sedesResponse?.totalEmpresa ?? arvoreResponse?.totalEmpresa ?? 0),
+        totalFornecedor: Number(sedesResponse?.totalFornecedor ?? arvoreResponse?.totalFornecedor ?? 0),
+      })
+      setSelectedReportSede((prev) => {
+        if (prev && sedes.some((item) => item.sede === prev)) return prev
+        return sedes[0]?.sede || ''
+      })
+      setSelectedReportSetor('')
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        setReportsError(err.message || 'Erro ao carregar relatorio.')
+      }
+    } finally {
+      setReportsLoading(false)
+    }
+  }
+
   const username = auth?.username?.toLowerCase()
   const isAdmin = username === 'admin'
   const isRh = username === 'rh'
@@ -181,6 +325,7 @@ export function usePagamentosController() {
   const canCreateSetor = isAdmin
   const canCreateDespesa = isAdmin || isRh
   const canCreateUser = isAdmin
+  const canManageEntities = isAdmin
   const canViewReports = isAdmin
   const canViewHistory = isAdmin || isDiretoria || isRh
 
@@ -251,7 +396,11 @@ export function usePagamentosController() {
       })
       const totalResponse = await somarPagamentos(authData, activeFilters, controller.signal)
       if (requestId !== requestIdRef.current) return
-      setTotalValue(parseCurrency(totalResponse?.total))
+      setTotalSummary({
+        total: parseCurrency(totalResponse?.total),
+        totalEmpresa: parseCurrency(totalResponse?.totalEmpresa),
+        totalFornecedor: parseCurrency(totalResponse?.totalFornecedor),
+      })
     } catch (err) {
       if (err?.name === 'AbortError') return
       if (err.status === 401) {
@@ -336,6 +485,10 @@ export function usePagamentosController() {
   }
 
   const refreshVisibleData = async (targetPage = 0) => {
+    if (currentPage === 'reports') {
+      await loadReports()
+      return
+    }
     await fetchPagamentos({ pageNumber: targetPage, skipCache: true })
     if (viewMode === 'spreadsheet') {
       await fetchSpreadsheetRows()
@@ -364,6 +517,7 @@ export function usePagamentosController() {
       setAuthModalOpen(false)
       setPageCache({})
       setPrefetchCache({})
+      setCurrentPage('payments')
 
       await fetchPagamentos({
         pageNumber: 0,
@@ -371,6 +525,9 @@ export function usePagamentosController() {
         filtersOverride: loginFilters,
         skipCache: true,
       })
+      if (cleaned.username?.toLowerCase() === 'admin') {
+        await fetchManagedLists(cleaned)
+      }
       if (viewMode === 'spreadsheet') {
         await fetchSpreadsheetRows({ authOverride: cleaned, filtersOverride: loginFilters })
       }
@@ -395,17 +552,23 @@ export function usePagamentosController() {
     setSetorModalOpen(false)
     setDespesaModalOpen(false)
     setUserModalOpen(false)
+    setEntityModalOpen(false)
     setPasswordModalOpen(false)
-    setReportsModalOpen(false)
     setPeriodPreset('anoAtual')
     setFilters(buildFiltersForRange('anoAtual', defaultFilters))
-    setTotalValue(0)
+    setTotalSummary(defaultTotalsSummary())
     setPageCache({})
     setPrefetchCache({})
     setSpreadsheetRows([])
     setViewMode('cards')
-    setReportsData(defaultReportState)
+    setCurrentPage('payments')
+    setReportsData(defaultReportsViewState())
     setReportsError('')
+    setManagedUsers([])
+    setManagedSetores([])
+    setManagedDespesas([])
+    setManagedEmpresas([])
+    setManagedFornecedores([])
   }
 
   useEffect(() => {
@@ -416,11 +579,19 @@ export function usePagamentosController() {
     if (auth) {
       fetchPagamentos({ pageNumber: 0 })
       fetchReferencias(auth)
+      if (auth.username?.toLowerCase() === 'admin') {
+        fetchManagedLists(auth)
+      }
     }
   }, [auth])
 
   const applyFilters = async () => {
     const nextFilters = { ...filters }
+    if (currentPage === 'reports') {
+      setFilters(nextFilters)
+      await loadReports({ filtersOverride: nextFilters })
+      return
+    }
     await fetchPagamentos({ pageNumber: 0, filtersOverride: nextFilters })
     if (viewMode === 'spreadsheet') {
       await fetchSpreadsheetRows({ filtersOverride: nextFilters })
@@ -431,6 +602,10 @@ export function usePagamentosController() {
     const nextFilters = buildFiltersForRange('anoAtual', defaultFilters)
     setPeriodPreset('anoAtual')
     setFilters(nextFilters)
+    if (currentPage === 'reports') {
+      await loadReports({ filtersOverride: nextFilters })
+      return
+    }
     await fetchPagamentos({ pageNumber: 0, filtersOverride: nextFilters })
     if (viewMode === 'spreadsheet') {
       await fetchSpreadsheetRows({ filtersOverride: nextFilters })
@@ -444,6 +619,10 @@ export function usePagamentosController() {
       return
     }
     const nextFilters = buildFiltersForRange(nextPreset, filters)
+    if (currentPage === 'reports') {
+      await loadReports({ filtersOverride: nextFilters })
+      return
+    }
     await fetchPagamentos({ pageNumber: 0, filtersOverride: nextFilters })
     if (viewMode === 'spreadsheet') {
       await fetchSpreadsheetRows({ filtersOverride: nextFilters })
@@ -460,13 +639,30 @@ export function usePagamentosController() {
     }
   }
 
+  const openPaymentsPage = () => {
+    setCurrentPage('payments')
+  }
+
+  const openReportsPage = async () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!isAdmin) {
+      showError('Somente admin pode visualizar relatorios.')
+      return
+    }
+    setCurrentPage('reports')
+    await loadReports()
+  }
+
   const openCreateModal = () => {
     setModal({ open: true, mode: 'create' })
     setForm({ ...createDefaultForm(), colaborador: '' })
     setError('')
   }
 
-  const openSetorModal = () => {
+  const openSetorModal = async () => {
     if (!auth) {
       setAuthModalOpen(true)
       return
@@ -475,16 +671,21 @@ export function usePagamentosController() {
       showError('Somente admin pode configurar setores.')
       return
     }
-    setSetorForm({ nome: '', despesas: [] })
+    setSetorForm(defaultSetorForm())
     setSetorModalOpen(true)
     setError('')
+    try {
+      await fetchManagedLists(auth)
+    } catch (err) {
+      showError(err.message || 'Erro ao carregar gestao de setores.')
+    }
   }
 
   const closeSetorModal = () => {
     setSetorModalOpen(false)
   }
 
-  const openDespesaModal = () => {
+  const openDespesaModal = async () => {
     if (!auth) {
       setAuthModalOpen(true)
       return
@@ -493,35 +694,86 @@ export function usePagamentosController() {
       showError('Somente admin e RH podem criar despesas.')
       return
     }
-    setDespesaForm({ setor: '', despesa: '' })
+    setDespesaForm(defaultDespesaConfigForm())
     setDespesaModalOpen(true)
     setError('')
+    try {
+      if (isAdmin) {
+        await fetchManagedLists(auth)
+      }
+    } catch (err) {
+      showError(err.message || 'Erro ao carregar gestao de despesas.')
+    }
   }
 
   const closeDespesaModal = () => {
     setDespesaModalOpen(false)
   }
 
-  const openUserModal = () => {
+  const openUserModal = async () => {
     if (!auth) {
       setAuthModalOpen(true)
       return
     }
     if (!isAdmin) {
-      showError('Somente admin pode criar usuarios.')
+      showError('Somente admin pode gerenciar usuarios.')
       return
     }
     setUserForm({ ...defaultUserForm })
     setUserModalOpen(true)
     setError('')
+    try {
+      await fetchManagedLists(auth)
+    } catch (err) {
+      showError(err.message || 'Erro ao carregar gestao de usuarios.')
+    }
   }
 
   const closeUserModal = () => {
     setUserModalOpen(false)
   }
 
+  const openEntityModal = async () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!isAdmin) {
+      showError('Somente admin pode gerenciar empresas e fornecedores.')
+      return
+    }
+    setEntityForm(defaultEntityForm())
+    setEntityModalOpen(true)
+    setError('')
+    try {
+      await fetchManagedLists(auth)
+    } catch (err) {
+      showError(err.message || 'Erro ao carregar gestao de empresas e fornecedores.')
+    }
+  }
+
+  const closeEntityModal = () => {
+    setEntityModalOpen(false)
+  }
+
   const updateUserForm = (key, value) => {
     setUserForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const updateSetorForm = (key, value) => {
+    setSetorForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const updateDespesaForm = (key, value) => {
+    setDespesaForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const updateEntityForm = (key, value) => {
+    setEntityForm((prev) => ({
+      ...prev,
+      [key]: value,
+      ...(key === 'tipo' ? { targetNome: '' } : {}),
+    }))
   }
 
   const openPasswordModal = () => {
@@ -555,44 +807,6 @@ export function usePagamentosController() {
     })
   }
 
-  const openReportsModal = async () => {
-    if (!auth) {
-      setAuthModalOpen(true)
-      return
-    }
-    if (!isAdmin) {
-      showError('Somente admin pode visualizar relatorios.')
-      return
-    }
-
-    setReportsModalOpen(true)
-    setReportsLoading(true)
-    setReportsError('')
-    try {
-      const data = await carregarRelatorioSedes(auth, filters)
-      setReportsData(data || defaultReportState)
-    } catch (err) {
-      if (err.status === 401) {
-        setAuthModalOpen(true)
-        setReportsModalOpen(false)
-        showError('Credenciais invalidas.')
-      } else {
-        setReportsError(err.message || 'Erro ao carregar relatorio.')
-      }
-    } finally {
-      setReportsLoading(false)
-    }
-  }
-
-  const closeReportsModal = () => {
-    setReportsModalOpen(false)
-    setReportsError('')
-  }
-
-  const updateSetorNome = (nome) => {
-    setSetorForm((prev) => ({ ...prev, nome }))
-  }
-
   const addSetorDespesa = (despesaRaw) => {
     const despesa = String(despesaRaw || '').trim()
     if (!despesa) return
@@ -613,14 +827,6 @@ export function usePagamentosController() {
     }))
   }
 
-  const updateDespesaSetor = (setor) => {
-    setDespesaForm((prev) => ({ ...prev, setor }))
-  }
-
-  const updateDespesaNome = (despesa) => {
-    setDespesaForm((prev) => ({ ...prev, despesa }))
-  }
-
   const saveSetor = async () => {
     if (!auth) {
       setAuthModalOpen(true)
@@ -631,25 +837,33 @@ export function usePagamentosController() {
       return
     }
 
-    const nome = setorForm.nome?.trim()
-    const despesas = Array.isArray(setorForm.despesas)
-      ? setorForm.despesas.filter((item) => Boolean(item?.trim()))
-      : []
-
-    if (!nome) {
-      showError('Informe o nome do setor.')
-      return
-    }
-    if (!despesas.length) {
-      showError('Adicione ao menos uma despesa.')
-      return
-    }
-
     setLoading(true)
     try {
-      const bundle = await salvarSetorConfig(auth, { nome, despesas })
-      applyReferenceBundle(bundle)
-      saveCachedReferencias(bundle)
+      if (setorForm.mode === 'inactivate') {
+        if (!setorForm.targetNome) {
+          showError('Selecione o setor que sera inativado.')
+          return
+        }
+        await inativarSetor(auth, { nome: setorForm.targetNome })
+      } else {
+        const nome = setorForm.nome?.trim()
+        const despesas = Array.isArray(setorForm.despesas)
+          ? setorForm.despesas.filter((item) => Boolean(item?.trim()))
+          : []
+
+        if (!nome) {
+          showError('Informe o nome do setor.')
+          return
+        }
+        if (!despesas.length) {
+          showError('Adicione ao menos uma despesa.')
+          return
+        }
+
+        await salvarSetorConfig(auth, { nome, despesas })
+      }
+      await refreshReferences(auth)
+      await fetchManagedLists(auth)
       setSetorModalOpen(false)
     } catch (err) {
       if (err.status === 401) {
@@ -673,22 +887,31 @@ export function usePagamentosController() {
       return
     }
 
-    const setor = despesaForm.setor?.trim()
-    const despesa = despesaForm.despesa?.trim()
-    if (!setor) {
-      showError('Selecione o setor.')
-      return
-    }
-    if (!despesa) {
-      showError('Informe o nome da despesa.')
-      return
-    }
-
     setLoading(true)
     try {
-      const bundle = await salvarDespesaConfig(auth, { setor, despesa })
-      applyReferenceBundle(bundle)
-      saveCachedReferencias(bundle)
+      if (despesaForm.mode === 'inactivate') {
+        if (!despesaForm.targetNome) {
+          showError('Selecione a despesa que sera inativada.')
+          return
+        }
+        await inativarDespesa(auth, { nome: despesaForm.targetNome })
+      } else {
+        const setor = despesaForm.setor?.trim()
+        const despesa = despesaForm.despesa?.trim()
+        if (!setor) {
+          showError('Selecione o setor.')
+          return
+        }
+        if (!despesa) {
+          showError('Informe o nome da despesa.')
+          return
+        }
+        await salvarDespesaConfig(auth, { setor, despesa })
+      }
+      await refreshReferences(auth)
+      if (isAdmin) {
+        await fetchManagedLists(auth)
+      }
       setDespesaModalOpen(false)
     } catch (err) {
       if (err.status === 401) {
@@ -708,29 +931,34 @@ export function usePagamentosController() {
       return
     }
     if (!isAdmin) {
-      showError('Somente admin pode criar usuarios.')
-      return
-    }
-
-    const username = userForm.username?.trim().toLowerCase()
-    const password = userForm.password?.trim()
-    const visibleUsernames = Array.isArray(userForm.visibleUsernames) ? userForm.visibleUsernames : []
-
-    if (!username) {
-      showError('Informe o login do usuario.')
-      return
-    }
-    if (!password) {
-      showError('Informe a senha do usuario.')
+      showError('Somente admin pode gerenciar usuarios.')
       return
     }
 
     setLoading(true)
     try {
-      await criarUsuario(auth, { username, password, visibleUsernames })
-      const bundle = await listarReferencias(auth)
-      applyReferenceBundle(bundle)
-      saveCachedReferencias(bundle)
+      if (userForm.mode === 'inactivate') {
+        if (!userForm.targetUsername) {
+          showError('Selecione o usuario que sera inativado.')
+          return
+        }
+        await inativarUsuario(auth, { username: userForm.targetUsername })
+      } else {
+        const username = userForm.username?.trim().toLowerCase()
+        const password = userForm.password?.trim()
+        const visibleUsernames = Array.isArray(userForm.visibleUsernames) ? userForm.visibleUsernames : []
+        if (!username) {
+          showError('Informe o login do usuario.')
+          return
+        }
+        if (!password) {
+          showError('Informe a senha do usuario.')
+          return
+        }
+        await criarUsuario(auth, { username, password, visibleUsernames })
+      }
+      await refreshReferences(auth)
+      await fetchManagedLists(auth)
       await fetchLoginOptions()
       setUserModalOpen(false)
       setUserForm({ ...defaultUserForm })
@@ -740,6 +968,51 @@ export function usePagamentosController() {
         showError('Credenciais invalidas.')
       } else {
         showError(err.message || 'Erro ao criar usuario.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveEntity = async () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!isAdmin) {
+      showError('Somente admin pode gerenciar empresas e fornecedores.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      if (entityForm.mode === 'inactivate') {
+        if (!entityForm.targetNome) {
+          showError(`Selecione o ${entityForm.tipo} que sera inativado.`)
+          return
+        }
+        if (entityForm.tipo === 'empresa') {
+          await inativarEmpresa(auth, { nome: entityForm.targetNome })
+        } else {
+          await inativarFornecedor(auth, { nome: entityForm.targetNome })
+        }
+      } else {
+        const nome = entityForm.nome?.trim()
+        if (!nome) {
+          showError(`Informe o nome do ${entityForm.tipo}.`)
+          return
+        }
+        await salvarEmpresaFornecedorConfig(auth, { tipo: entityForm.tipo, nome })
+      }
+      await refreshReferences(auth)
+      await fetchManagedLists(auth)
+      setEntityModalOpen(false)
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        showError(err.message || 'Erro ao salvar empresa/fornecedor.')
       }
     } finally {
       setLoading(false)
@@ -1067,11 +1340,13 @@ export function usePagamentosController() {
 
   return {
     auth,
+    currentPage,
     isAdmin,
     isRh,
     canCreateUser,
     canViewReports,
     canViewHistory,
+    canManageEntities,
     loginOptions,
     canCreateSetor,
     canCreateDespesa,
@@ -1089,16 +1364,24 @@ export function usePagamentosController() {
     modal,
     setorModalOpen,
     setorForm,
+    managedSetores,
     despesaModalOpen,
     despesaForm,
+    managedDespesas,
     userModalOpen,
     userForm,
+    managedUsers,
+    entityModalOpen,
+    entityForm,
+    managedEmpresas,
+    managedFornecedores,
     passwordModalOpen,
     passwordForm,
-    reportsModalOpen,
     reportsData,
     reportsLoading,
     reportsError,
+    selectedReportSede,
+    selectedReportSetor,
     form,
     historyModalOpen,
     historyDate,
@@ -1107,7 +1390,7 @@ export function usePagamentosController() {
     historyError,
     loading,
     error,
-    totalValue,
+    totalSummary,
     references,
     prefetchCache,
     canPaginateNext,
@@ -1124,42 +1407,47 @@ export function usePagamentosController() {
     applyQuickFilter,
     toggleViewMode,
     toggleFilters,
+    openPaymentsPage,
     openCreateModal,
     openSetorModal,
     openDespesaModal,
     openUserModal,
+    openEntityModal,
     openPasswordModal,
-    openReportsModal,
+    openReportsPage,
     openEditModal,
     openHistoryModal,
     closeModal,
     closeSetorModal,
     closeDespesaModal,
     closeUserModal,
+    closeEntityModal,
     closePasswordModal,
-    closeReportsModal,
     closeHistoryModal,
     updateHistoryDate,
     applyHistoryDateFilter,
     clearHistoryDateFilter,
     updateForm,
     updateFilters,
-    updateSetorNome,
+    updateSetorForm,
     addSetorDespesa,
     removeSetorDespesa,
-    updateDespesaSetor,
-    updateDespesaNome,
+    updateDespesaForm,
     updateUserForm,
+    updateEntityForm,
     updatePasswordForm,
     toggleUserVisibility,
     savePagamento,
     saveSetor,
     saveDespesa,
     saveUser,
+    saveEntity,
     savePassword,
     removePagamento,
     goNextPage,
     goPrevPage,
+    setSelectedReportSede,
+    setSelectedReportSetor,
   }
 }
 

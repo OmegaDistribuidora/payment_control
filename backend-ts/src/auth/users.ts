@@ -23,6 +23,7 @@ type StoredUserRow = {
   username: string;
   passwordHash: string;
   role: Role;
+  ativo?: boolean;
 };
 
 type CreateUserPayload = {
@@ -34,6 +35,11 @@ type CreateUserPayload = {
 type ChangePasswordPayload = {
   currentPassword?: unknown;
   newPassword?: unknown;
+};
+
+type UserStatusRow = {
+  username: string;
+  ativo: boolean;
 };
 
 const USERS: UserRecord[] = [
@@ -68,6 +74,15 @@ async function ensureUsersTable(): Promise<void> {
             visible_username varchar(80) not null,
             criado_em timestamp without time zone not null default timezone('America/Fortaleza', now()),
             primary key (owner_username, visible_username)
+          )
+        `),
+      )
+      .then(() =>
+        pool.query(`
+          create table if not exists app_usuario_status (
+            username varchar(80) primary key,
+            ativo boolean not null default true,
+            atualizado_em timestamp without time zone not null default timezone('America/Fortaleza', now())
           )
         `),
       )
@@ -133,6 +148,21 @@ async function findStoredUser(username: string, client?: PoolClient): Promise<St
   return rows[0] ?? null;
 }
 
+async function findStoredUserAnyStatus(username: string, client?: PoolClient): Promise<StoredUserRow | null> {
+  await ensureUsersTable();
+  const executor = client ?? pool;
+  const { rows } = await executor.query<StoredUserRow>(
+    `
+      select username, password_hash as "passwordHash", role, ativo
+      from app_usuario
+      where lower(username) = lower($1)
+      limit 1
+    `,
+    [username],
+  );
+  return rows[0] ?? null;
+}
+
 function dedupeUserList(items: Array<{ username: string; role: Role; origem: 'padrao' | 'custom' }>) {
   const seen = new Set<string>();
   return items.filter((item) => {
@@ -147,7 +177,7 @@ async function usernameExists(username: string, client?: PoolClient): Promise<bo
   if (USER_MAP.has(username.toLowerCase())) {
     return true;
   }
-  return Boolean(await findStoredUser(username, client));
+  return Boolean(await findStoredUserAnyStatus(username, client));
 }
 
 async function listVisibleUsernames(username: string, client?: PoolClient): Promise<string[]> {
@@ -178,8 +208,46 @@ function normalizeVisibleUsernames(value: unknown, username: string): string[] {
   return items;
 }
 
+async function listUserStatuses(client?: PoolClient): Promise<Map<string, boolean>> {
+  await ensureUsersTable();
+  const executor = client ?? pool;
+  const { rows } = await executor.query<UserStatusRow>(
+    `
+      select username, ativo
+      from app_usuario_status
+    `,
+  );
+  const result = new Map<string, boolean>();
+  for (const row of rows) {
+    result.set(row.username.toLowerCase(), row.ativo);
+  }
+  return result;
+}
+
+async function isUserActive(username: string, client?: PoolClient): Promise<boolean> {
+  const statuses = await listUserStatuses(client);
+  const status = statuses.get(username.toLowerCase());
+  return status !== false;
+}
+
+async function upsertUserStatus(username: string, ativo: boolean, client: PoolClient): Promise<void> {
+  await client.query(
+    `
+      insert into app_usuario_status (username, ativo, atualizado_em)
+      values ($1, $2, timezone('America/Fortaleza', now()))
+      on conflict (username)
+      do update set
+        ativo = excluded.ativo,
+        atualizado_em = excluded.atualizado_em
+    `,
+    [username, ativo],
+  );
+}
+
 export async function authenticateBasic(username: string, password: string): Promise<AuthUser | null> {
   const normalizedUsername = String(username ?? '').trim().toLowerCase();
+  const active = await isUserActive(normalizedUsername).catch(() => true);
+  if (!active) return null;
   const stored = await findStoredUser(normalizedUsername).catch(() => null);
   if (stored) {
     if (!verifyPassword(password, stored.passwordHash)) return null;
@@ -218,6 +286,7 @@ export function perfilCriador(user: AuthUser): string {
 
 export async function listAvailableUsers(): Promise<Array<{ username: string; role: Role; origem: 'padrao' | 'custom' }>> {
   await ensureUsersTable();
+  const statuses = await listUserStatuses();
   const { rows } = await pool.query<StoredUserRow>(
     `
       select username, password_hash as "passwordHash", role
@@ -242,7 +311,41 @@ export async function listAvailableUsers(): Promise<Array<{ username: string; ro
     ...customUsers,
   ];
 
-  return dedupeUserList(all);
+  return dedupeUserList(all).filter((item) => statuses.get(item.username.toLowerCase()) !== false);
+}
+
+export async function listManageableUsers(): Promise<Array<{ username: string; role: Role; origem: 'padrao' | 'custom'; ativo: boolean }>> {
+  await ensureUsersTable();
+  const statuses = await listUserStatuses();
+  const { rows } = await pool.query<StoredUserRow>(
+    `
+      select username, password_hash as "passwordHash", role, ativo
+      from app_usuario
+      order by lower(username)
+    `,
+  );
+
+  const customUsers = rows.map((row) => ({
+    username: row.username,
+    role: row.role,
+    origem: 'custom' as const,
+    ativo: row.ativo !== false && statuses.get(row.username.toLowerCase()) !== false,
+  }));
+
+  const defaults = USERS.map((item) => ({
+    username: item.username,
+    role: item.role,
+    origem: 'padrao' as const,
+    ativo: statuses.get(item.username.toLowerCase()) !== false,
+  }));
+
+  const seen = new Set<string>();
+  return [...defaults, ...customUsers].filter((item) => {
+    const key = item.username.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export async function listLoginOptions(): Promise<Array<{ username: string; label: string }>> {
@@ -281,6 +384,7 @@ export async function createUser(authUser: AuthUser, payload: CreateUserPayload)
       `,
       [username, hashPassword(password), role],
     );
+    await upsertUserStatus(username, true, client);
 
     for (const visibleUsername of visibleUsernames) {
       if (!(await usernameExists(visibleUsername, client))) {
@@ -356,6 +460,7 @@ export async function changeOwnPassword(
       `,
       [authUser.username, hashPassword(newPassword), role],
     );
+    await upsertUserStatus(authUser.username, true, client);
 
     await logAudit(client, {
       entityType: 'usuario',
@@ -369,6 +474,50 @@ export async function changeOwnPassword(
 
     await client.query('commit');
     return { username: authUser.username };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function inactivateUser(authUser: AuthUser, targetUsernameRaw: unknown): Promise<{ username: string; ativo: false }> {
+  if (!canManageUsers(authUser)) {
+    forbidden('Acao permitida somente para admin.');
+  }
+
+  const targetUsername = normalizeUsername(targetUsernameRaw);
+  if (targetUsername === 'admin') {
+    badRequest('O usuario admin nao pode ser inativado.');
+  }
+  if (!(await usernameExists(targetUsername))) {
+    badRequest('Usuario nao encontrado.');
+  }
+
+  const client = await pool.connect();
+  try {
+    await ensureUsersTable();
+    await client.query('begin');
+
+    const existing = await findStoredUserAnyStatus(targetUsername, client);
+    if (existing) {
+      await client.query('update app_usuario set ativo = false where lower(username) = lower($1)', [targetUsername]);
+    }
+    await upsertUserStatus(targetUsername, false, client);
+
+    await logAudit(client, {
+      entityType: 'usuario',
+      entityId: targetUsername,
+      action: 'INATIVADO',
+      actor: authUser.username,
+      details: {
+        descricao: `Usuario ${targetUsername} inativado por ${authUser.username}`,
+      },
+    });
+
+    await client.query('commit');
+    return { username: targetUsername, ativo: false };
   } catch (error) {
     await client.query('rollback');
     throw error;

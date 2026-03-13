@@ -2,10 +2,11 @@ function DespesaConfigModal({
   isOpen,
   form,
   references,
+  managedItems = [],
+  allowInactivate = false,
   loading,
   error,
-  onSetorChange,
-  onDespesaChange,
+  onChange,
   onSave,
   onClose,
 }) {
@@ -16,8 +17,8 @@ function DespesaConfigModal({
       <div className="modal modal-despesa">
         <header className="modal-header">
           <div>
-            <div className="modal-title">Criar Despesa</div>
-            <div className="modal-subtitle">Adicione uma nova despesa e associe a um setor existente</div>
+            <div className="modal-title">Despesa</div>
+            <div className="modal-subtitle">Crie uma nova despesa ou inative uma existente</div>
           </div>
           <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
             x
@@ -26,33 +27,54 @@ function DespesaConfigModal({
 
         <div className="modal-body">
           <div className="modal-field">
-            <label className="modal-label">Setor</label>
-            <select
-              className="modal-input"
-              value={form?.setor || ''}
-              onChange={(event) => onSetorChange(event.target.value)}
-              disabled={loading}
-            >
-              <option value="">Selecione...</option>
-              {(references?.setores || []).map((item) => (
-                <option key={`despesa-setor-${item.codigo}`} value={item.nome}>
-                  {item.nome}
-                </option>
-              ))}
+            <label className="modal-label">Acao</label>
+            <select className="modal-input" value={form?.mode || 'create'} onChange={(event) => onChange('mode', event.target.value)} disabled={loading}>
+              <option value="create">Criar novo</option>
+              {allowInactivate ? <option value="inactivate">Inativar</option> : null}
             </select>
           </div>
 
-          <div className="modal-field">
-            <label className="modal-label">Nome da despesa</label>
-            <input
-              className="modal-input"
-              type="text"
-              value={form?.despesa || ''}
-              onChange={(event) => onDespesaChange(event.target.value)}
-              placeholder="Ex.: Vale Refeicao"
-              disabled={loading}
-            />
-          </div>
+          {allowInactivate && form?.mode === 'inactivate' ? (
+            <div className="modal-field">
+              <label className="modal-label">Despesa</label>
+              <select className="modal-input" value={form?.targetNome || ''} onChange={(event) => onChange('targetNome', event.target.value)} disabled={loading}>
+                <option value="">Selecione...</option>
+                {managedItems
+                  .filter((item) => item.ativo)
+                  .map((item) => (
+                    <option key={`despesa-manage-${item.codigo}`} value={item.nome}>
+                      {item.nome}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          ) : (
+            <>
+              <div className="modal-field">
+                <label className="modal-label">Setor</label>
+                <select className="modal-input" value={form?.setor || ''} onChange={(event) => onChange('setor', event.target.value)} disabled={loading}>
+                  <option value="">Selecione...</option>
+                  {(references?.setores || []).map((item) => (
+                    <option key={`despesa-setor-${item.codigo}`} value={item.nome}>
+                      {item.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="modal-field">
+                <label className="modal-label">Nome da despesa</label>
+                <input
+                  className="modal-input"
+                  type="text"
+                  value={form?.despesa || ''}
+                  onChange={(event) => onChange('despesa', event.target.value)}
+                  placeholder="Ex.: Vale Refeicao"
+                  disabled={loading}
+                />
+              </div>
+            </>
+          )}
 
           {error ? <div className="modal-error">{error}</div> : null}
         </div>
@@ -62,7 +84,7 @@ function DespesaConfigModal({
             Cancelar
           </button>
           <button className="modal-action primary" type="button" onClick={onSave} disabled={loading}>
-            {loading ? 'Salvando...' : 'Salvar despesa'}
+            {loading ? 'Salvando...' : allowInactivate && form?.mode === 'inactivate' ? 'Inativar despesa' : 'Salvar despesa'}
           </button>
         </footer>
       </div>

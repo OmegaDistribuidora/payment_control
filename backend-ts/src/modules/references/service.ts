@@ -1,8 +1,7 @@
 import type { PoolClient } from 'pg';
 import { pool } from '../../db/pool.js';
 import { badRequest, forbidden } from '../../http/http-error.js';
-import { canManageDespesas, canManageSetores, type AuthUser } from '../../auth/users.js';
-import { listAvailableUsers } from '../../auth/users.js';
+import { canManageDespesas, canManageSetores, listManageableUsers, type AuthUser } from '../../auth/users.js';
 import { trimToNull } from '../../http/utils.js';
 import { logAudit } from '../../audit/service.js';
 
@@ -24,6 +23,12 @@ export type ColaboradorItem = {
   email: string | null;
 };
 
+export type ManagedReferenceItem = {
+  codigo: number;
+  nome: string;
+  ativo: boolean;
+};
+
 export type ReferenceBundle = {
   setores: ReferenceItem[];
   despesas: DespesaItem[];
@@ -41,6 +46,14 @@ const DEFAULT_EMPRESAS = ['J2A'];
 let cachedBundle: ReferenceBundle | null = null;
 let cacheAt = 0;
 
+async function ensureReferenceStatusColumns(client?: PoolClient): Promise<void> {
+  const executor = client ?? pool;
+  await executor.query('alter table if exists ref_setor add column if not exists ativo boolean not null default true');
+  await executor.query('alter table if exists ref_despesa add column if not exists ativo boolean not null default true');
+  await executor.query('alter table if exists ref_empresa add column if not exists ativo boolean not null default true');
+  await executor.query('alter table if exists ref_fornecedor add column if not exists ativo boolean not null default true');
+}
+
 async function hasSetorDespesasTable(client?: PoolClient): Promise<boolean> {
   const executor = client ?? pool;
   const { rows } = await executor.query<{ exists: string | null }>(
@@ -54,9 +67,21 @@ async function listSimple(table: 'ref_setor' | 'ref_dspcent' | 'ref_empresa' | '
   return rows;
 }
 
+async function listActiveSimple(table: 'ref_setor' | 'ref_empresa' | 'ref_fornecedor'): Promise<ReferenceItem[]> {
+  await ensureReferenceStatusColumns();
+  const { rows } = await pool.query<ReferenceItem>(`select codigo, nome from ${table} where ativo = true order by codigo`);
+  return rows;
+}
+
+async function listManagedSimple(table: 'ref_setor' | 'ref_empresa' | 'ref_fornecedor'): Promise<ManagedReferenceItem[]> {
+  await ensureReferenceStatusColumns();
+  const { rows } = await pool.query<ManagedReferenceItem>(`select codigo, nome, ativo from ${table} order by lower(nome)`);
+  return rows;
+}
+
 export async function listSetores(): Promise<ReferenceItem[]> {
   const cached = getCachedBundle();
-  return cached ? cached.setores : listSimple('ref_setor');
+  return cached ? cached.setores : listActiveSimple('ref_setor');
 }
 
 export async function listDspCentros(): Promise<ReferenceItem[]> {
@@ -70,21 +95,25 @@ export async function listDespesas(codMt?: number): Promise<DespesaItem[]> {
   }
 
   if (codMt === undefined || codMt === null) {
+    await ensureReferenceStatusColumns();
     const { rows } = await pool.query<DespesaItem>(`
       select d.codigo, d.nome, d.cod_mt as "codMt", c.nome as "dspCent"
       from ref_despesa d
       join ref_dspcent c on c.codigo = d.cod_mt
+      where d.ativo = true
       order by d.codigo
     `);
     return rows;
   }
 
+  await ensureReferenceStatusColumns();
   const { rows } = await pool.query<DespesaItem>(
     `
       select d.codigo, d.nome, d.cod_mt as "codMt", c.nome as "dspCent"
       from ref_despesa d
       join ref_dspcent c on c.codigo = d.cod_mt
       where d.cod_mt = $1
+        and d.ativo = true
       order by d.codigo
     `,
     [codMt],
@@ -95,12 +124,12 @@ export async function listDespesas(codMt?: number): Promise<DespesaItem[]> {
 export async function listEmpresas(): Promise<ReferenceItem[]> {
   await ensureDefaultEmpresas();
   const cached = getCachedBundle();
-  return cached ? cached.empresas : listSimple('ref_empresa');
+  return cached ? cached.empresas : listActiveSimple('ref_empresa');
 }
 
 export async function listFornecedores(): Promise<ReferenceItem[]> {
   const cached = getCachedBundle();
-  return cached ? cached.fornecedores : listSimple('ref_fornecedor');
+  return cached ? cached.fornecedores : listActiveSimple('ref_fornecedor');
 }
 
 export async function listSedes(): Promise<ReferenceItem[]> {
@@ -132,6 +161,8 @@ export async function listSetorDespesas(): Promise<Record<string, string[]>> {
     from ref_setor_despesa sd
     join ref_setor s on s.codigo = sd.setor_codigo
     join ref_despesa d on d.codigo = sd.despesa_codigo
+    where coalesce(s.ativo, true) = true
+      and coalesce(d.ativo, true) = true
     order by lower(s.nome), lower(d.nome)
   `);
 
@@ -151,7 +182,7 @@ export async function listTudo(): Promise<ReferenceBundle> {
     empresas: await listEmpresas(),
     fornecedores: await listFornecedores(),
     colaboradores: await listColaboradores(),
-    usuarios: await listAvailableUsers(),
+    usuarios: await listManageableUsers(),
     setorDespesas: await listSetorDespesas(),
   };
   cacheBundle(bundle);
@@ -202,11 +233,12 @@ export async function ensureDefaultEmpresas(client?: PoolClient): Promise<void> 
   let inserted = false;
 
   try {
+    await ensureReferenceStatusColumns(executor);
     for (const nome of DEFAULT_EMPRESAS) {
       const codigoExistente = await findCodigoByNome(executor, 'ref_empresa', nome);
       if (codigoExistente) continue;
       const codigo = await nextCodigo(executor, 'ref_empresa');
-      await executor.query('insert into ref_empresa (codigo, nome) values ($1, $2)', [codigo, nome]);
+      await executor.query('insert into ref_empresa (codigo, nome, ativo) values ($1, $2, true)', [codigo, nome]);
       inserted = true;
     }
   } finally {
@@ -217,6 +249,141 @@ export async function ensureDefaultEmpresas(client?: PoolClient): Promise<void> 
       executor.release();
     }
   }
+}
+
+export async function listManagedSetores(): Promise<ManagedReferenceItem[]> {
+  return listManagedSimple('ref_setor');
+}
+
+export async function listManagedEmpresas(): Promise<ManagedReferenceItem[]> {
+  await ensureDefaultEmpresas();
+  return listManagedSimple('ref_empresa');
+}
+
+export async function listManagedFornecedores(): Promise<ManagedReferenceItem[]> {
+  return listManagedSimple('ref_fornecedor');
+}
+
+export async function listManagedDespesas(): Promise<ManagedReferenceItem[]> {
+  await ensureReferenceStatusColumns();
+  const { rows } = await pool.query<ManagedReferenceItem>(
+    'select codigo, nome, ativo from ref_despesa order by lower(nome)',
+  );
+  return rows;
+}
+
+export async function salvarEmpresaFornecedorConfig(
+  authUser: AuthUser,
+  payload: unknown,
+): Promise<ReferenceBundle> {
+  if (!canManageSetores(authUser)) {
+    forbidden('Acao permitida somente para admin.');
+  }
+
+  const body = (payload ?? {}) as { tipo?: string; nome?: string };
+  const tipo = trimToNull(body.tipo)?.toLowerCase();
+  const nome = trimToNull(body.nome);
+  if (tipo !== 'empresa' && tipo !== 'fornecedor') {
+    badRequest('Tipo invalido. Use empresa ou fornecedor.');
+  }
+  if (!nome) {
+    badRequest('Nome obrigatorio.');
+  }
+
+  const tabela = tipo === 'empresa' ? 'ref_empresa' : 'ref_fornecedor';
+  const entidade = tipo;
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await ensureReferenceStatusColumns(client);
+    const existente = await findCodigoByNome(client, tabela, nome);
+    if (existente) {
+      badRequest(`${entidade === 'empresa' ? 'Empresa' : 'Fornecedor'} ja existe.`);
+    }
+    const codigo = await nextCodigo(client, tabela);
+    await client.query(`insert into ${tabela} (codigo, nome, ativo) values ($1, $2, true)`, [codigo, nome]);
+    await logAudit(client, {
+      entityType: entidade,
+      entityId: nome,
+      action: 'CRIADO',
+      actor: authUser.username,
+      details: {
+        descricao: `${entidade === 'empresa' ? 'Empresa' : 'Fornecedor'} ${nome} criado por ${authUser.username}`,
+        snapshot: { nome, tipo: entidade },
+      },
+    });
+    await client.query('commit');
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  clearCache();
+  return listTudo();
+}
+
+async function inactivateReference(
+  authUser: AuthUser,
+  table: 'ref_setor' | 'ref_despesa' | 'ref_empresa' | 'ref_fornecedor',
+  entityType: 'setor' | 'despesa' | 'empresa' | 'fornecedor',
+  nomeRaw: unknown,
+): Promise<{ nome: string; ativo: false }> {
+  if (!canManageSetores(authUser)) {
+    forbidden('Acao permitida somente para admin.');
+  }
+
+  const nome = trimToNull(nomeRaw);
+  if (!nome) {
+    badRequest('Nome obrigatorio.');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await ensureReferenceStatusColumns(client);
+    const codigo = await findCodigoByNome(client, table, nome);
+    if (!codigo) {
+      badRequest('Registro nao encontrado.');
+    }
+    await client.query(`update ${table} set ativo = false where codigo = $1`, [codigo]);
+    await logAudit(client, {
+      entityType,
+      entityId: nome,
+      action: 'INATIVADO',
+      actor: authUser.username,
+      details: {
+        descricao: `${entityType.charAt(0).toUpperCase() + entityType.slice(1)} ${nome} inativado por ${authUser.username}`,
+      },
+    });
+    await client.query('commit');
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  clearCache();
+  return { nome, ativo: false };
+}
+
+export async function inativarSetor(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: false }> {
+  return inactivateReference(authUser, 'ref_setor', 'setor', nome);
+}
+
+export async function inativarDespesa(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: false }> {
+  return inactivateReference(authUser, 'ref_despesa', 'despesa', nome);
+}
+
+export async function inativarEmpresa(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: false }> {
+  return inactivateReference(authUser, 'ref_empresa', 'empresa', nome);
+}
+
+export async function inativarFornecedor(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: false }> {
+  return inactivateReference(authUser, 'ref_fornecedor', 'fornecedor', nome);
 }
 
 export async function salvarSetorConfig(authUser: AuthUser, payload: unknown): Promise<ReferenceBundle> {

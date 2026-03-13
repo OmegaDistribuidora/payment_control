@@ -7,9 +7,18 @@ import {
   listDspCentros,
   listEmpresas,
   listFornecedores,
+  listManagedDespesas,
+  listManagedEmpresas,
+  listManagedFornecedores,
+  listManagedSetores,
   listSedes,
   listSetores,
+  inativarDespesa,
+  inativarEmpresa,
+  inativarFornecedor,
+  inativarSetor,
   listTudo,
+  salvarEmpresaFornecedorConfig,
   salvarDespesaConfig,
   salvarSetorConfig,
 } from './service.js';
@@ -24,6 +33,10 @@ export async function registerReferenceRoutes(app: FastifyInstance): Promise<voi
   app.get('/api/referencias/sedes', async () => listSedes());
   app.get('/api/referencias/dotacoes', async () => listDotacoes());
   app.get('/api/referencias/colaboradores', async () => listColaboradores());
+  app.get('/api/referencias/gestao/setores', async () => ({ content: await listManagedSetores() }));
+  app.get('/api/referencias/gestao/despesas', async () => ({ content: await listManagedDespesas() }));
+  app.get('/api/referencias/gestao/empresas', async () => ({ content: await listManagedEmpresas() }));
+  app.get('/api/referencias/gestao/fornecedores', async () => ({ content: await listManagedFornecedores() }));
 
   app.get('/api/referencias/despesas', async (request) => {
     const raw = (request.query as { codMt?: string }).codMt;
@@ -54,5 +67,49 @@ export async function registerReferenceRoutes(app: FastifyInstance): Promise<voi
       badRequest('Usuario autenticado nao encontrado.');
     }
     return salvarDespesaConfig(authUser, request.body);
+  });
+
+  app.post('/api/referencias/empresas-fornecedores/config', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    return salvarEmpresaFornecedorConfig(authUser, request.body);
+  });
+
+  app.post('/api/referencias/setores/inativar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    const body = request.body as { nome?: unknown };
+    return inativarSetor(authUser, body.nome);
+  });
+
+  app.post('/api/referencias/despesas/inativar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    const body = request.body as { nome?: unknown };
+    return inativarDespesa(authUser, body.nome);
+  });
+
+  app.post('/api/referencias/empresas/inativar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    const body = request.body as { nome?: unknown };
+    return inativarEmpresa(authUser, body.nome);
+  });
+
+  app.post('/api/referencias/fornecedores/inativar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    const body = request.body as { nome?: unknown };
+    return inativarFornecedor(authUser, body.nome);
   });
 }

@@ -3,13 +3,16 @@ import { useEffect, useRef, useState } from 'react'
 function TopBar({
   currentDate,
   currentMonth,
+  currentPage,
   onCreate,
   onHistory,
   onConfigSetor,
   onConfigDespesa,
   onConfigUser,
+  onConfigEntity,
   onChangePassword,
   onOpenReports,
+  onOpenPayments,
   onToggleView,
   viewMode,
   disableHistory,
@@ -18,6 +21,7 @@ function TopBar({
   showSetorButton,
   showDespesaButton,
   showUserButton,
+  showEntityButton,
   showReportsButton,
   showHistoryButton,
 }) {
@@ -48,7 +52,7 @@ function TopBar({
     action?.()
   }
 
-  const hasOptions = showDespesaButton || showSetorButton || showUserButton
+  const hasOptions = showDespesaButton || showSetorButton || showUserButton || showEntityButton
 
   return (
     <header className="topbar">
@@ -95,9 +99,15 @@ function TopBar({
               </button>
             ) : null}
             {showReportsButton ? (
-              <button className="topbar-menu-action" type="button" onClick={runMenuAction(onOpenReports)}>
-                Relatorios
-              </button>
+              currentPage === 'reports' ? (
+                <button className="topbar-menu-action" type="button" onClick={runMenuAction(onOpenPayments)}>
+                  Lancamentos
+                </button>
+              ) : (
+                <button className="topbar-menu-action" type="button" onClick={runMenuAction(onOpenReports)}>
+                  Relatorios
+                </button>
+              )
             ) : null}
             {hasOptions ? (
               <div className={`topbar-submenu${optionsOpen ? ' is-open' : ''}`}>
@@ -112,26 +122,33 @@ function TopBar({
                   <div className="topbar-submenu-panel">
                     {showDespesaButton ? (
                       <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigDespesa)}>
-                        Criar Despesa
+                        Despesa
                       </button>
                     ) : null}
                     {showSetorButton ? (
                       <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigSetor)}>
-                        Criar Setor
+                        Setor
                       </button>
                     ) : null}
                     {showUserButton ? (
                       <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigUser)}>
-                        Criar Usuario
+                        Usuarios
+                      </button>
+                    ) : null}
+                    {showEntityButton ? (
+                      <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigEntity)}>
+                        Empresas/Fornecedores
                       </button>
                     ) : null}
                   </div>
                 ) : null}
               </div>
             ) : null}
-            <button className="topbar-menu-action" type="button" onClick={runMenuAction(onToggleView)}>
-              {viewMode === 'spreadsheet' ? 'Cards' : 'Planilha'}
-            </button>
+            {currentPage === 'payments' ? (
+              <button className="topbar-menu-action" type="button" onClick={runMenuAction(onToggleView)}>
+                {viewMode === 'spreadsheet' ? 'Cards' : 'Planilha'}
+              </button>
+            ) : null}
             {isAuthenticated ? (
               <button className="topbar-menu-action" type="button" onClick={runMenuAction(onChangePassword)}>
                 Trocar Senha

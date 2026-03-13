@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react'
 function SetorConfigModal({
   isOpen,
   form,
+  managedItems = [],
   loading,
   error,
-  onNomeChange,
+  onChange,
   onAddDespesa,
   onRemoveDespesa,
   onSave,
@@ -32,8 +33,8 @@ function SetorConfigModal({
       <div className="modal modal-setor">
         <header className="modal-header">
           <div>
-            <div className="modal-title">Novo Setor</div>
-            <div className="modal-subtitle">Defina o nome do setor e as despesas permitidas</div>
+            <div className="modal-title">Setor</div>
+            <div className="modal-subtitle">Crie um novo setor ou inative um setor existente</div>
           </div>
           <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
             x
@@ -42,12 +43,46 @@ function SetorConfigModal({
 
         <div className="modal-body">
           <div className="modal-field">
+            <label className="modal-label">Acao</label>
+            <select
+              className="modal-input"
+              value={form?.mode || 'create'}
+              onChange={(event) => onChange('mode', event.target.value)}
+              disabled={loading}
+            >
+              <option value="create">Criar novo</option>
+              <option value="inactivate">Inativar</option>
+            </select>
+          </div>
+
+          {form?.mode === 'inactivate' ? (
+            <div className="modal-field">
+              <label className="modal-label">Setor</label>
+              <select
+                className="modal-input"
+                value={form?.targetNome || ''}
+                onChange={(event) => onChange('targetNome', event.target.value)}
+                disabled={loading}
+              >
+                <option value="">Selecione...</option>
+                {managedItems
+                  .filter((item) => item.ativo)
+                  .map((item) => (
+                    <option key={`setor-manage-${item.codigo}`} value={item.nome}>
+                      {item.nome}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          ) : (
+            <>
+          <div className="modal-field">
             <label className="modal-label">Nome do setor</label>
             <input
               className="modal-input"
               type="text"
               value={form?.nome || ''}
-              onChange={(event) => onNomeChange(event.target.value)}
+              onChange={(event) => onChange('nome', event.target.value)}
               placeholder="Ex.: Juridico"
               disabled={loading}
             />
@@ -100,6 +135,8 @@ function SetorConfigModal({
               )}
             </div>
           </div>
+            </>
+          )}
 
           {error ? <div className="modal-error">{error}</div> : null}
         </div>
@@ -109,7 +146,7 @@ function SetorConfigModal({
             Cancelar
           </button>
           <button className="modal-action primary" type="button" onClick={onSave} disabled={loading}>
-            {loading ? 'Salvando...' : 'Salvar setor'}
+            {loading ? 'Salvando...' : form?.mode === 'inactivate' ? 'Inativar setor' : 'Salvar setor'}
           </button>
         </footer>
       </div>

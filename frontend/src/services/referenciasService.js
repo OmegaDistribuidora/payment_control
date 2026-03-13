@@ -16,6 +16,42 @@ export function salvarDespesaConfig(auth, payload) {
   return apiRequest('/api/referencias/despesas/config', { method: 'POST', auth, body: payload })
 }
 
+export function salvarEmpresaFornecedorConfig(auth, payload) {
+  return apiRequest('/api/referencias/empresas-fornecedores/config', { method: 'POST', auth, body: payload })
+}
+
+export function listarSetoresGestao(auth) {
+  return apiRequest('/api/referencias/gestao/setores', { auth })
+}
+
+export function listarDespesasGestao(auth) {
+  return apiRequest('/api/referencias/gestao/despesas', { auth })
+}
+
+export function listarEmpresasGestao(auth) {
+  return apiRequest('/api/referencias/gestao/empresas', { auth })
+}
+
+export function listarFornecedoresGestao(auth) {
+  return apiRequest('/api/referencias/gestao/fornecedores', { auth })
+}
+
+export function inativarSetor(auth, payload) {
+  return apiRequest('/api/referencias/setores/inativar', { method: 'POST', auth, body: payload })
+}
+
+export function inativarDespesa(auth, payload) {
+  return apiRequest('/api/referencias/despesas/inativar', { method: 'POST', auth, body: payload })
+}
+
+export function inativarEmpresa(auth, payload) {
+  return apiRequest('/api/referencias/empresas/inativar', { method: 'POST', auth, body: payload })
+}
+
+export function inativarFornecedor(auth, payload) {
+  return apiRequest('/api/referencias/fornecedores/inativar', { method: 'POST', auth, body: payload })
+}
+
 const CACHE_KEY = 'payment_control.referencias.v3'
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6
 

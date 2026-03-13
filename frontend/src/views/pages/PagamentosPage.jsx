@@ -11,8 +11,9 @@ import AuthModal from '../components/AuthModal.jsx'
 import SetorConfigModal from '../components/SetorConfigModal.jsx'
 import DespesaConfigModal from '../components/DespesaConfigModal.jsx'
 import UserConfigModal from '../components/UserConfigModal.jsx'
-import ReportsModal from '../components/ReportsModal.jsx'
 import ChangePasswordModal from '../components/ChangePasswordModal.jsx'
+import EntityConfigModal from '../components/EntityConfigModal.jsx'
+import ReportsPage from './ReportsPage.jsx'
 import { formatDate, formatMonth } from '../../models/pagamentoModel.js'
 import '../../styles/payments.css'
 
@@ -51,24 +52,38 @@ function PagamentosPage() {
   )
 
   const handleReload = useCallback(async () => {
+    if (controller.currentPage === 'reports') {
+      await controller.openReportsPage()
+      return
+    }
     await controller.fetchPagamentos({ pageNumber: controller.pageInfo.number, skipCache: true })
     if (controller.viewMode === 'spreadsheet') {
       await controller.fetchSpreadsheetRows()
     }
-  }, [controller.fetchPagamentos, controller.fetchSpreadsheetRows, controller.pageInfo.number, controller.viewMode])
+  }, [
+    controller.currentPage,
+    controller.fetchPagamentos,
+    controller.fetchSpreadsheetRows,
+    controller.openReportsPage,
+    controller.pageInfo.number,
+    controller.viewMode,
+  ])
 
   return (
     <div className="app">
       <TopBar
         currentDate={formatDate(today)}
         currentMonth={formatMonth(today)}
+        currentPage={controller.currentPage}
         onCreate={controller.openCreateModal}
         onHistory={controller.openHistoryModal}
         onConfigSetor={controller.openSetorModal}
         onConfigDespesa={controller.openDespesaModal}
         onConfigUser={controller.openUserModal}
+        onConfigEntity={controller.openEntityModal}
         onChangePassword={controller.openPasswordModal}
-        onOpenReports={controller.openReportsModal}
+        onOpenReports={controller.openReportsPage}
+        onOpenPayments={controller.openPaymentsPage}
         onToggleView={controller.toggleViewMode}
         viewMode={controller.viewMode}
         disableHistory={false}
@@ -77,13 +92,14 @@ function PagamentosPage() {
         showSetorButton={controller.canCreateSetor}
         showDespesaButton={controller.canCreateDespesa}
         showUserButton={controller.canCreateUser}
+        showEntityButton={controller.canManageEntities}
         showReportsButton={controller.canViewReports}
         showHistoryButton={controller.canViewHistory}
       />
       <FiltersBar
         filters={controller.filters}
         userLabel={controller.auth?.username}
-        totalValue={controller.totalValue}
+        totalSummary={controller.totalSummary}
         filtersOpen={controller.isFiltersOpen}
         loading={controller.loading}
         onReload={handleReload}
@@ -102,7 +118,17 @@ function PagamentosPage() {
       />
       {controller.error ? <div className="page-error">{controller.error}</div> : null}
       {controller.loading ? <div className="loading-hint">Carregando dados...</div> : null}
-      {controller.viewMode === 'cards' ? (
+      {controller.currentPage === 'reports' ? (
+        <ReportsPage
+          data={controller.reportsData}
+          loading={controller.reportsLoading}
+          error={controller.reportsError}
+          selectedSede={controller.selectedReportSede}
+          selectedSetor={controller.selectedReportSetor}
+          onSelectSede={controller.setSelectedReportSede}
+          onSelectSetor={controller.setSelectedReportSetor}
+        />
+      ) : controller.viewMode === 'cards' ? (
         <>
           <SheetTable
             rows={controller.pagamentos}
@@ -181,9 +207,10 @@ function PagamentosPage() {
       <SetorConfigModal
         isOpen={controller.setorModalOpen}
         form={controller.setorForm}
+        managedItems={controller.managedSetores}
         loading={controller.loading}
         error={controller.error}
-        onNomeChange={controller.updateSetorNome}
+        onChange={controller.updateSetorForm}
         onAddDespesa={controller.addSetorDespesa}
         onRemoveDespesa={controller.removeSetorDespesa}
         onSave={controller.saveSetor}
@@ -193,10 +220,11 @@ function PagamentosPage() {
         isOpen={controller.despesaModalOpen}
         form={controller.despesaForm}
         references={controller.references}
+        managedItems={controller.managedDespesas}
+        allowInactivate={controller.isAdmin}
         loading={controller.loading}
         error={controller.error}
-        onSetorChange={controller.updateDespesaSetor}
-        onDespesaChange={controller.updateDespesaNome}
+        onChange={controller.updateDespesaForm}
         onSave={controller.saveDespesa}
         onClose={controller.closeDespesaModal}
       />
@@ -204,6 +232,7 @@ function PagamentosPage() {
         isOpen={controller.userModalOpen}
         form={controller.userForm}
         availableUsers={controller.references?.usuarios || []}
+        managedUsers={controller.managedUsers}
         loading={controller.loading}
         error={controller.error}
         onChange={controller.updateUserForm}
@@ -211,12 +240,16 @@ function PagamentosPage() {
         onSave={controller.saveUser}
         onClose={controller.closeUserModal}
       />
-      <ReportsModal
-        isOpen={controller.reportsModalOpen}
-        data={controller.reportsData}
-        loading={controller.reportsLoading}
-        error={controller.reportsError}
-        onClose={controller.closeReportsModal}
+      <EntityConfigModal
+        isOpen={controller.entityModalOpen}
+        form={controller.entityForm}
+        empresas={controller.managedEmpresas}
+        fornecedores={controller.managedFornecedores}
+        loading={controller.loading}
+        error={controller.error}
+        onChange={controller.updateEntityForm}
+        onSave={controller.saveEntity}
+        onClose={controller.closeEntityModal}
       />
       <ChangePasswordModal
         isOpen={controller.passwordModalOpen}

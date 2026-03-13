@@ -30,9 +30,11 @@ export function createDefaultForm() {
 export const defaultForm = createDefaultForm()
 
 export const defaultUserForm = {
+  mode: 'create',
   username: '',
   password: '',
   visibleUsernames: [],
+  targetUsername: '',
 }
 
 export const defaultPasswordForm = {
@@ -43,6 +45,8 @@ export const defaultPasswordForm = {
 export const defaultReportState = {
   content: [],
   totalGeral: 0,
+  totalEmpresa: 0,
+  totalFornecedor: 0,
 }
 
 export const sheetColumns = [

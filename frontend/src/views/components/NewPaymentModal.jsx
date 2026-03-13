@@ -186,8 +186,8 @@ function NewPaymentModal({
   if (!isOpen) return null
   const isEdit = mode === 'edit'
   const rateioItems = useMemo(
-    () => buildRateioItems(form.dotacao, references),
-    [form.dotacao, references]
+    () => buildRateioItems(form.dotacao, references, form),
+    [form.dotacao, references, form]
   )
   const rateioSum = calculateRateioSum(form.rateios)
   const total = parseCurrency(form.valorTotal)
@@ -309,11 +309,20 @@ function buildOptions(fieldKey, references, form) {
     if (!setores.some((item) => normalizeText(item.nome) === 'comercial')) {
       setores.push({ codigo: 'extra-comercial', nome: 'Comercial' })
     }
-    return setores.map((item) => ({
+    const options = setores.map((item) => ({
       key: `setor-${item.codigo}`,
       value: item.nome,
       label: item.nome,
     }))
+    const atual = form?.setor
+    if (atual && !options.some((item) => normalizeText(item.value) === normalizeText(atual))) {
+      options.push({
+        key: `setor-atual-${normalizeText(atual)}`,
+        value: atual,
+        label: atual,
+      })
+    }
+    return options
   }
   if (fieldKey === 'despesa') {
     return buildDespesaOptions(form?.setor, references, form?.despesa)
@@ -336,14 +345,32 @@ function buildOptions(fieldKey, references, form) {
       value: item.nome,
       label: item.nome,
     }))
-    return [...empresas, ...fornecedores]
+    const options = [...empresas, ...fornecedores]
+    const atual = form?.empresaFornecedor
+    if (atual && !options.some((item) => normalizeText(item.value) === normalizeText(atual))) {
+      options.push({
+        key: `empresa-fornecedor-atual-${normalizeText(atual)}`,
+        value: atual,
+        label: atual,
+      })
+    }
+    return options
   }
   if (fieldKey === 'setorPagamento') {
-    return references.setores.map((item) => ({
+    const options = references.setores.map((item) => ({
       key: `setor-pag-${item.codigo}`,
       value: item.nome,
       label: item.nome,
     }))
+    const atual = form?.setorPagamento
+    if (atual && !options.some((item) => normalizeText(item.value) === normalizeText(atual))) {
+      options.push({
+        key: `setor-pag-atual-${normalizeText(atual)}`,
+        value: atual,
+        label: atual,
+      })
+    }
+    return options
   }
   return []
 }
@@ -435,7 +462,7 @@ function normalizeText(value) {
     .toLowerCase()
 }
 
-function buildRateioItems(dotacao, references) {
+function buildRateioItems(dotacao, references, form) {
   if (!dotacao || !references) return []
   const norm = dotacao.toLowerCase()
   let items = []
@@ -447,6 +474,15 @@ function buildRateioItems(dotacao, references) {
   if (norm === 'funcionario') {
     items = [...(references.empresas || []), ...(references.fornecedores || [])]
   }
+  const extras = Array.isArray(form?.rateios)
+    ? form.rateios
+        .filter((item) => item?.nome)
+        .map((item, index) => ({ codigo: `extra-${index}`, nome: item.nome }))
+    : []
+  if (form?.empresaFornecedor) {
+    extras.push({ codigo: 'empresa-fornecedor-atual', nome: form.empresaFornecedor })
+  }
+  items = [...items, ...extras]
   const seen = new Set()
   return items
     .filter((item) => {

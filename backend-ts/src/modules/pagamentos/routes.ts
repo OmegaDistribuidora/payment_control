@@ -8,6 +8,7 @@ import {
   listarHistorico,
   listarMeus,
   normalizeCampos,
+  relatorioArvore,
   relatorioTotalPorSede,
   somarMeus,
 } from './service.js';
@@ -42,6 +43,13 @@ export async function registerPagamentoRoutes(app: FastifyInstance): Promise<voi
     if (!authUser) badRequest('Usuario autenticado nao encontrado.');
     const query = request.query as Record<string, string | undefined>;
     return relatorioTotalPorSede(authUser, query);
+  });
+
+  app.get('/api/pagamentos/relatorios/arvore', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) badRequest('Usuario autenticado nao encontrado.');
+    const query = request.query as Record<string, string | undefined>;
+    return relatorioArvore(authUser, query);
   });
 
   app.get('/api/pagamentos/:id', async (request) => {

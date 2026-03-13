@@ -71,3 +71,8 @@ export function carregarRelatorioSedes(auth, filters, signal) {
   const query = buildQueryParams(filters)
   return apiRequest(`/api/pagamentos/relatorios/sedes${query}`, { auth, signal })
 }
+
+export function carregarRelatorioArvore(auth, filters, signal) {
+  const query = buildQueryParams(filters)
+  return apiRequest(`/api/pagamentos/relatorios/arvore${query}`, { auth, signal })
+}
