@@ -26,6 +26,7 @@ function FiltersBar({ filters, userLabel, totalSummary, filtersOpen, loading, on
   const totalFormatted = formatCurrency(totalSummary?.total || 0)
   const totalEmpresaFormatted = formatCurrency(totalSummary?.totalEmpresa || 0)
   const totalFornecedorFormatted = formatCurrency(totalSummary?.totalFornecedor || 0)
+  const totalFuncionarioFormatted = formatCurrency(totalSummary?.totalFuncionario || 0)
   const inicio = filters?.de ? formatDate(filters.de) : '--/--/----'
   const fim = filters?.ate ? formatDate(filters.ate) : '--/--/----'
   const periodo = `${inicio} ate ${fim}`
@@ -45,6 +46,7 @@ function FiltersBar({ filters, userLabel, totalSummary, filtersOpen, loading, on
         <div className="filter-value">{totalFormatted || 'R$ --'}</div>
         <div className="filter-split-value">Empresas: {totalEmpresaFormatted || 'R$ --'}</div>
         <div className="filter-split-value">Fornecedores: {totalFornecedorFormatted || 'R$ --'}</div>
+        <div className="filter-split-value">Funcionario: {totalFuncionarioFormatted || 'R$ --'}</div>
       </div>
       <div className="filter-tools">
         <button

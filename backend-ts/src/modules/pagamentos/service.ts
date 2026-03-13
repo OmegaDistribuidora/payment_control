@@ -63,6 +63,7 @@ type RelatorioRow = {
   total: string;
   totalEmpresa: string;
   totalFornecedor: string;
+  totalFuncionario: string;
 };
 
 type WhereClause = {
@@ -600,15 +601,21 @@ function buildRateioSplitCte(where: WhereClause): { sql: string; params: unknown
           p.despesa,
           p.valor_total,
           case
+            when p.dotacao_norm = 'funcionario' then 0
             when coalesce(rateio.rateio_total, 0) > 0 then coalesce(rateio.total_empresa_rateio, 0)
             when destino.eh_empresa then p.valor_total
             else 0
           end as total_empresa,
           case
+            when p.dotacao_norm = 'funcionario' then 0
             when coalesce(rateio.rateio_total, 0) > 0 then greatest(p.valor_total - coalesce(rateio.total_empresa_rateio, 0), 0)
             when destino.eh_empresa then 0
             else p.valor_total
-          end as total_fornecedor
+          end as total_fornecedor,
+          case
+            when p.dotacao_norm = 'funcionario' then p.valor_total
+            else 0
+          end as total_funcionario
         from filtered_pagamentos p
         left join lateral (
           select
@@ -694,16 +701,17 @@ export async function listarMeus(
 export async function somarMeus(
   authUser: AuthUser,
   filtros: Filtros,
-): Promise<{ total: number; totalEmpresa: number; totalFornecedor: number }> {
+): Promise<{ total: number; totalEmpresa: number; totalFornecedor: number; totalFuncionario: number }> {
   const where = buildWhere(authUser, filtros);
   const split = buildRateioSplitCte(where);
-  const { rows } = await pool.query<{ total: string; totalEmpresa: string; totalFornecedor: string }>(
+  const { rows } = await pool.query<{ total: string; totalEmpresa: string; totalFornecedor: string; totalFuncionario: string }>(
     `
       ${split.sql}
       select
         coalesce(sum(valor_total), 0) as total,
         coalesce(sum(total_empresa), 0) as "totalEmpresa",
-        coalesce(sum(total_fornecedor), 0) as "totalFornecedor"
+        coalesce(sum(total_fornecedor), 0) as "totalFornecedor",
+        coalesce(sum(total_funcionario), 0) as "totalFuncionario"
       from pagamento_split
     `,
     split.params,
@@ -712,6 +720,7 @@ export async function somarMeus(
     total: Number(rows[0]?.total ?? 0),
     totalEmpresa: Number(rows[0]?.totalEmpresa ?? 0),
     totalFornecedor: Number(rows[0]?.totalFornecedor ?? 0),
+    totalFuncionario: Number(rows[0]?.totalFuncionario ?? 0),
   };
 }
 
@@ -1007,10 +1016,11 @@ export async function relatorioTotalPorSede(
   authUser: AuthUser,
   filtros: Filtros,
 ): Promise<{
-  content: Array<{ sede: string; quantidade: number; total: number; totalEmpresa: number; totalFornecedor: number }>;
+  content: Array<{ sede: string; quantidade: number; total: number; totalEmpresa: number; totalFornecedor: number; totalFuncionario: number }>;
   totalGeral: number;
   totalEmpresa: number;
   totalFornecedor: number;
+  totalFuncionario: number;
 }> {
   if (authUser.username.toLowerCase() !== 'admin') {
     forbidden('Acao permitida somente para admin.');
@@ -1025,11 +1035,12 @@ export async function relatorioTotalPorSede(
         coalesce(nullif(trim(sede), ''), 'Sem sede') as sede,
         null::text as setor,
         null::text as despesa,
-        count(*)::bigint as quantidade,
-        coalesce(sum(valor_total), 0) as total,
-        coalesce(sum(total_empresa), 0) as "totalEmpresa",
-        coalesce(sum(total_fornecedor), 0) as "totalFornecedor"
-      from pagamento_split
+          count(*)::bigint as quantidade,
+          coalesce(sum(valor_total), 0) as total,
+          coalesce(sum(total_empresa), 0) as "totalEmpresa",
+          coalesce(sum(total_fornecedor), 0) as "totalFornecedor",
+          coalesce(sum(total_funcionario), 0) as "totalFuncionario"
+        from pagamento_split
       group by coalesce(nullif(trim(sede), ''), 'Sem sede')
       order by lower(coalesce(nullif(trim(sede), ''), 'Sem sede'))
     `,
@@ -1039,16 +1050,18 @@ export async function relatorioTotalPorSede(
   const content = rows.map((row) => ({
     sede: row.sede ?? 'Sem sede',
     quantidade: Number(row.quantidade ?? 0),
-    total: Number(row.total ?? 0),
-    totalEmpresa: Number(row.totalEmpresa ?? 0),
-    totalFornecedor: Number(row.totalFornecedor ?? 0),
-  }));
+      total: Number(row.total ?? 0),
+      totalEmpresa: Number(row.totalEmpresa ?? 0),
+      totalFornecedor: Number(row.totalFornecedor ?? 0),
+      totalFuncionario: Number(row.totalFuncionario ?? 0),
+    }));
 
   return {
     content,
     totalGeral: Number(content.reduce((sum, item) => sum + item.total, 0).toFixed(2)),
     totalEmpresa: Number(content.reduce((sum, item) => sum + item.totalEmpresa, 0).toFixed(2)),
     totalFornecedor: Number(content.reduce((sum, item) => sum + item.totalFornecedor, 0).toFixed(2)),
+    totalFuncionario: Number(content.reduce((sum, item) => sum + item.totalFuncionario, 0).toFixed(2)),
   };
 }
 
@@ -1064,10 +1077,12 @@ export async function relatorioArvore(
     total: number;
     totalEmpresa: number;
     totalFornecedor: number;
+    totalFuncionario: number;
   }>;
   totalGeral: number;
   totalEmpresa: number;
   totalFornecedor: number;
+  totalFuncionario: number;
 }> {
   if (authUser.username.toLowerCase() !== 'admin') {
     forbidden('Acao permitida somente para admin.');
@@ -1082,11 +1097,12 @@ export async function relatorioArvore(
         coalesce(nullif(trim(sede), ''), 'Sem sede') as sede,
         coalesce(nullif(trim(setor), ''), 'Sem setor') as setor,
         coalesce(nullif(trim(despesa), ''), 'Sem despesa') as despesa,
-        count(*)::bigint as quantidade,
-        coalesce(sum(valor_total), 0) as total,
-        coalesce(sum(total_empresa), 0) as "totalEmpresa",
-        coalesce(sum(total_fornecedor), 0) as "totalFornecedor"
-      from pagamento_split
+          count(*)::bigint as quantidade,
+          coalesce(sum(valor_total), 0) as total,
+          coalesce(sum(total_empresa), 0) as "totalEmpresa",
+          coalesce(sum(total_fornecedor), 0) as "totalFornecedor",
+          coalesce(sum(total_funcionario), 0) as "totalFuncionario"
+        from pagamento_split
       group by
         coalesce(nullif(trim(sede), ''), 'Sem sede'),
         coalesce(nullif(trim(setor), ''), 'Sem setor'),
@@ -1104,15 +1120,17 @@ export async function relatorioArvore(
     setor: row.setor ?? 'Sem setor',
     despesa: row.despesa ?? 'Sem despesa',
     quantidade: Number(row.quantidade ?? 0),
-    total: Number(row.total ?? 0),
-    totalEmpresa: Number(row.totalEmpresa ?? 0),
-    totalFornecedor: Number(row.totalFornecedor ?? 0),
-  }));
+      total: Number(row.total ?? 0),
+      totalEmpresa: Number(row.totalEmpresa ?? 0),
+      totalFornecedor: Number(row.totalFornecedor ?? 0),
+      totalFuncionario: Number(row.totalFuncionario ?? 0),
+    }));
 
   return {
     content,
     totalGeral: Number(content.reduce((sum, item) => sum + item.total, 0).toFixed(2)),
     totalEmpresa: Number(content.reduce((sum, item) => sum + item.totalEmpresa, 0).toFixed(2)),
     totalFornecedor: Number(content.reduce((sum, item) => sum + item.totalFornecedor, 0).toFixed(2)),
+    totalFuncionario: Number(content.reduce((sum, item) => sum + item.totalFuncionario, 0).toFixed(2)),
   };
 }

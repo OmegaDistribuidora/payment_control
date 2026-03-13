@@ -974,7 +974,7 @@
 
 .reports-summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -1066,6 +1066,31 @@
 
 .reports-despesas-wrap {
   max-height: 540px;
+}
+
+.reports-despesas-table {
+  min-width: 0;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.reports-despesas-table .spreadsheet-head:first-child,
+.reports-despesas-table .spreadsheet-cell:first-child {
+  width: 42%;
+}
+
+.reports-despesas-table .spreadsheet-head:nth-child(2),
+.reports-despesas-table .spreadsheet-cell:nth-child(2) {
+  width: 40%;
+}
+
+.reports-despesas-table .spreadsheet-head:last-child,
+.reports-despesas-table .spreadsheet-cell:last-child {
+  width: 18%;
+}
+
+.reports-despesa-total-cell {
+  white-space: normal;
 }
 
 .sheet-spreadsheet {

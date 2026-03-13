@@ -119,6 +119,7 @@ function defaultTotalsSummary() {
     total: 0,
     totalEmpresa: 0,
     totalFornecedor: 0,
+    totalFuncionario: 0,
   }
 }
 
@@ -129,6 +130,7 @@ function defaultReportsViewState() {
     totalGeral: 0,
     totalEmpresa: 0,
     totalFornecedor: 0,
+    totalFuncionario: 0,
   }
 }
 
@@ -295,11 +297,13 @@ export function usePagamentosController() {
         totalGeral: Number(sedesResponse?.totalGeral ?? arvoreResponse?.totalGeral ?? 0),
         totalEmpresa: Number(sedesResponse?.totalEmpresa ?? arvoreResponse?.totalEmpresa ?? 0),
         totalFornecedor: Number(sedesResponse?.totalFornecedor ?? arvoreResponse?.totalFornecedor ?? 0),
+        totalFuncionario: Number(sedesResponse?.totalFuncionario ?? arvoreResponse?.totalFuncionario ?? 0),
       })
       setTotalSummary({
         total: Number(sedesResponse?.totalGeral ?? arvoreResponse?.totalGeral ?? 0),
         totalEmpresa: Number(sedesResponse?.totalEmpresa ?? arvoreResponse?.totalEmpresa ?? 0),
         totalFornecedor: Number(sedesResponse?.totalFornecedor ?? arvoreResponse?.totalFornecedor ?? 0),
+        totalFuncionario: Number(sedesResponse?.totalFuncionario ?? arvoreResponse?.totalFuncionario ?? 0),
       })
       setSelectedReportSede((prev) => {
         if (prev && sedes.some((item) => item.sede === prev)) return prev
@@ -400,6 +404,7 @@ export function usePagamentosController() {
         total: parseCurrency(totalResponse?.total),
         totalEmpresa: parseCurrency(totalResponse?.totalEmpresa),
         totalFornecedor: parseCurrency(totalResponse?.totalFornecedor),
+        totalFuncionario: parseCurrency(totalResponse?.totalFuncionario),
       })
     } catch (err) {
       if (err?.name === 'AbortError') return
