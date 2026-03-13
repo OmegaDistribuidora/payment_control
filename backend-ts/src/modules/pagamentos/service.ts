@@ -599,43 +599,35 @@ function buildRateioSplitCte(where: WhereClause): { sql: string; params: unknown
           p.setor,
           p.despesa,
           p.valor_total,
-          coalesce(
-            nullif((
-              select sum(pr.valor)
-              from pagamento_rateio pr
-              join ref_empresa re on lower(re.nome) = lower(pr.nome)
-              where pr.pagamento_id = p.id
-            ), 0),
-            case
-              when p.dotacao_norm = 'empresa' then p.valor_total
-              when p.dotacao_norm in ('empresa/fornecedor', 'empr/fornecedor')
-                and exists (
-                  select 1
-                  from ref_empresa re
-                  where lower(re.nome) = lower(coalesce(p.empresa_fornecedor, ''))
-                ) then p.valor_total
-              else 0
-            end
-          ) as total_empresa,
-          coalesce(
-            nullif((
-              select sum(pr.valor)
-              from pagamento_rateio pr
-              join ref_fornecedor rf on lower(rf.nome) = lower(pr.nome)
-              where pr.pagamento_id = p.id
-            ), 0),
-            case
-              when p.dotacao_norm = 'fornecedor' then p.valor_total
-              when p.dotacao_norm in ('empresa/fornecedor', 'empr/fornecedor')
-                and exists (
-                  select 1
-                  from ref_fornecedor rf
-                  where lower(rf.nome) = lower(coalesce(p.empresa_fornecedor, ''))
-                ) then p.valor_total
-              else 0
-            end
-          ) as total_fornecedor
+          case
+            when coalesce(rateio.rateio_total, 0) > 0 then coalesce(rateio.total_empresa_rateio, 0)
+            when destino.eh_empresa then p.valor_total
+            else 0
+          end as total_empresa,
+          case
+            when coalesce(rateio.rateio_total, 0) > 0 then greatest(p.valor_total - coalesce(rateio.total_empresa_rateio, 0), 0)
+            when destino.eh_empresa then 0
+            else p.valor_total
+          end as total_fornecedor
         from filtered_pagamentos p
+        left join lateral (
+          select
+            coalesce(sum(pr.valor), 0) as rateio_total,
+            coalesce(sum(case when exists (
+              select 1
+              from ref_empresa re
+              where lower(re.nome) = lower(pr.nome)
+            ) then pr.valor else 0 end), 0) as total_empresa_rateio
+          from pagamento_rateio pr
+          where pr.pagamento_id = p.id
+        ) rateio on true
+        left join lateral (
+          select exists (
+            select 1
+            from ref_empresa re
+            where lower(re.nome) = lower(coalesce(p.empresa_fornecedor, ''))
+          ) as eh_empresa
+        ) destino on true
       )
     `,
     params: where.params,
