@@ -48,6 +48,7 @@ type HistoricoRow = {
 type Filtros = {
   de?: string;
   ate?: string;
+  sede?: string;
   usuario?: string;
   setor?: string;
   despesa?: string;
@@ -561,12 +562,14 @@ function buildWhere(authUser: AuthUser, filtros: Filtros): WhereClause {
   if (de) push('p.dt_pagamento >= ?::date', de);
   if (ate) push('p.dt_pagamento <= ?::date', ate);
 
+  const sede = normalizeText(filtros.sede);
   const usuario = normalizeText(filtros.usuario);
   const setor = normalizeText(filtros.setor);
   const despesa = normalizeText(filtros.despesa);
   const dotacao = normalizeText(filtros.dotacao);
   const q = toLikePattern(filtros.q);
 
+  if (sede) push('p.sede_norm = ?', sede);
   if (usuario) push('lower(p.criado_por) = ?', usuario);
   if (setor) push('p.setor_norm = ?', setor);
   if (despesa) push('p.despesa_norm = ?', despesa);

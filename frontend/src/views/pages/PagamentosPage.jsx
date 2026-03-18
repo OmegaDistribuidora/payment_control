@@ -125,8 +125,11 @@ function PagamentosPage() {
           error={controller.reportsError}
           selectedSede={controller.selectedReportSede}
           selectedSetor={controller.selectedReportSetor}
+          expenseDetails={controller.reportExpenseDetails}
           onSelectSede={controller.setSelectedReportSede}
           onSelectSetor={controller.setSelectedReportSetor}
+          onOpenExpenseDetails={controller.openReportExpenseDetails}
+          onCloseExpenseDetails={controller.closeReportExpenseDetails}
         />
       ) : controller.viewMode === 'cards' ? (
         <>

@@ -5,6 +5,7 @@ function buildQueryParams(filters, page) {
 
   if (filters?.de) params.set('de', filters.de)
   if (filters?.ate) params.set('ate', filters.ate)
+  if (filters?.sede) params.set('sede', filters.sede)
   if (filters?.usuario) params.set('usuario', filters.usuario)
   if (filters?.setor) params.set('setor', filters.setor)
   if (filters?.despesa) params.set('despesa', filters.despesa)

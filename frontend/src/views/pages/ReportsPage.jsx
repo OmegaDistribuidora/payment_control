@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { formatCurrency } from '../../models/pagamentoModel.js'
+import { formatCurrency, formatDate, formatDateTime } from '../../models/pagamentoModel.js'
 
 function sumBy(items, selector) {
   return Number(items.reduce((sum, item) => sum + Number(selector(item) || 0), 0).toFixed(2))
@@ -11,8 +11,11 @@ function ReportsPage({
   error,
   selectedSede,
   selectedSetor,
+  expenseDetails,
   onSelectSede,
   onSelectSetor,
+  onOpenExpenseDetails,
+  onCloseExpenseDetails,
 }) {
   const sedes = Array.isArray(data?.sedes) ? data.sedes : []
   const arvore = Array.isArray(data?.arvore) ? data.arvore : []
@@ -150,6 +153,7 @@ function ReportsPage({
                       <th className="spreadsheet-head align-left">Despesa</th>
                       <th className="spreadsheet-head align-right">Total</th>
                       <th className="spreadsheet-head align-center">Lanc.</th>
+                      <th className="spreadsheet-head align-center">Ver</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -164,11 +168,32 @@ function ReportsPage({
                             <div className="reports-node-meta">Funcionario: {formatCurrency(item.totalFuncionario)}</div>
                           </td>
                           <td className="spreadsheet-cell align-center">{item.quantidade}</td>
+                          <td className="spreadsheet-cell align-center">
+                            <button
+                              type="button"
+                              className="spreadsheet-icon-btn edit"
+                              title={`Ver lancamentos de ${item.despesa}`}
+                              aria-label={`Ver lancamentos de ${item.despesa}`}
+                              onClick={() => onOpenExpenseDetails(item.despesa)}
+                            >
+                              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                                <path
+                                  d="M1.5 12s3.8-6 10.5-6 10.5 6 10.5 6-3.8 6-10.5 6S1.5 12 1.5 12Z"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                              </svg>
+                            </button>
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td className="spreadsheet-cell align-center" colSpan={3}>
+                        <td className="spreadsheet-cell align-center" colSpan={4}>
                           Nenhuma despesa encontrada para este setor.
                         </td>
                       </tr>
@@ -187,6 +212,7 @@ function ReportsPage({
                         <td className="spreadsheet-head align-center">
                           {despesas.reduce((sum, item) => sum + Number(item.quantidade || 0), 0)}
                         </td>
+                        <td className="spreadsheet-head align-center">-</td>
                       </tr>
                     </tfoot>
                   ) : null}
@@ -195,6 +221,78 @@ function ReportsPage({
             ) : (
               <div className="empty-state">Escolha um setor para ver as despesas.</div>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {expenseDetails?.open ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal modal-history-detail report-expense-modal">
+            <header className="modal-header">
+              <div>
+                <div className="modal-title">Lancamentos da despesa</div>
+                <div className="modal-subtitle">
+                  {expenseDetails.despesa} | {expenseDetails.setor} | {expenseDetails.sede}
+                </div>
+              </div>
+              <button className="modal-close" type="button" onClick={onCloseExpenseDetails} aria-label="Fechar">
+                x
+              </button>
+            </header>
+
+            <div className="modal-body">
+              {expenseDetails.loading ? <div className="loading-hint">Carregando lancamentos...</div> : null}
+              {expenseDetails.error ? <div className="modal-error">{expenseDetails.error}</div> : null}
+              {!expenseDetails.loading && !expenseDetails.error ? (
+                <>
+                  <div className="report-expense-summary">
+                    {expenseDetails.totalElements} lancamentos encontrados
+                  </div>
+                  <div className="spreadsheet-wrap report-expense-table-wrap">
+                    <table className="spreadsheet-table report-expense-table">
+                      <thead>
+                        <tr>
+                          <th className="spreadsheet-head align-left">Num. Lanc.</th>
+                          <th className="spreadsheet-head align-left">Colaborador</th>
+                          <th className="spreadsheet-head align-center">Dt Registro</th>
+                          <th className="spreadsheet-head align-center">Dt Pagamento</th>
+                          <th className="spreadsheet-head align-left">Empresa/Fornecedor</th>
+                          <th className="spreadsheet-head align-right">Valor</th>
+                          <th className="spreadsheet-head align-left">Descricao</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {expenseDetails.items.length ? (
+                          expenseDetails.items.map((item) => (
+                            <tr key={item.id} className="spreadsheet-row">
+                              <td className="spreadsheet-cell align-left">{item.codVld || item.id}</td>
+                              <td className="spreadsheet-cell align-left">{item.colaborador || item.criadoPor || '-'}</td>
+                              <td className="spreadsheet-cell align-center">{formatDateTime(item.dtSistema)}</td>
+                              <td className="spreadsheet-cell align-center">{formatDate(item.dtPagamento)}</td>
+                              <td className="spreadsheet-cell align-left">{item.empresaFornecedor || '-'}</td>
+                              <td className="spreadsheet-cell align-right">{formatCurrency(item.valorTotal)}</td>
+                              <td className="spreadsheet-cell align-left">{item.descricao || '-'}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td className="spreadsheet-cell align-center" colSpan={7}>
+                              Nenhum lancamento encontrado para esta despesa.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <footer className="modal-footer">
+              <button className="modal-action ghost" type="button" onClick={onCloseExpenseDetails}>
+                Fechar
+              </button>
+            </footer>
           </div>
         </div>
       ) : null}

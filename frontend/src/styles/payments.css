@@ -1087,17 +1087,73 @@
 
 .reports-despesas-table .spreadsheet-head:first-child,
 .reports-despesas-table .spreadsheet-cell:first-child {
-  width: 48%;
+  width: 44%;
 }
 
 .reports-despesas-table .spreadsheet-head:nth-child(2),
 .reports-despesas-table .spreadsheet-cell:nth-child(2) {
-  width: 34%;
+  width: 30%;
+}
+
+.reports-despesas-table .spreadsheet-head:nth-child(3),
+.reports-despesas-table .spreadsheet-cell:nth-child(3) {
+  width: 14%;
 }
 
 .reports-despesas-table .spreadsheet-head:last-child,
 .reports-despesas-table .spreadsheet-cell:last-child {
-  width: 18%;
+  width: 12%;
+}
+
+.report-expense-modal {
+  width: min(1100px, 94vw);
+  max-height: 84vh;
+}
+
+.report-expense-summary {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-700);
+}
+
+.report-expense-table-wrap {
+  max-height: 58vh;
+}
+
+.report-expense-table {
+  min-width: 980px;
+}
+
+.report-expense-table .spreadsheet-head:nth-child(1),
+.report-expense-table .spreadsheet-cell:nth-child(1) {
+  width: 13%;
+}
+
+.report-expense-table .spreadsheet-head:nth-child(2),
+.report-expense-table .spreadsheet-cell:nth-child(2) {
+  width: 16%;
+}
+
+.report-expense-table .spreadsheet-head:nth-child(3),
+.report-expense-table .spreadsheet-cell:nth-child(3),
+.report-expense-table .spreadsheet-head:nth-child(4),
+.report-expense-table .spreadsheet-cell:nth-child(4) {
+  width: 13%;
+}
+
+.report-expense-table .spreadsheet-head:nth-child(5),
+.report-expense-table .spreadsheet-cell:nth-child(5) {
+  width: 17%;
+}
+
+.report-expense-table .spreadsheet-head:nth-child(6),
+.report-expense-table .spreadsheet-cell:nth-child(6) {
+  width: 11%;
+}
+
+.report-expense-table .spreadsheet-head:nth-child(7),
+.report-expense-table .spreadsheet-cell:nth-child(7) {
+  width: 17%;
 }
 
 .reports-despesa-total-cell {

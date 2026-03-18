@@ -134,6 +134,19 @@ function defaultReportsViewState() {
   }
 }
 
+function defaultReportExpenseDetailsState() {
+  return {
+    open: false,
+    sede: '',
+    setor: '',
+    despesa: '',
+    items: [],
+    totalElements: 0,
+    loading: false,
+    error: '',
+  }
+}
+
 export function usePagamentosController() {
   const [auth, setAuth] = useState(loadAuth())
   const [authModalOpen, setAuthModalOpen] = useState(!auth)
@@ -185,6 +198,7 @@ export function usePagamentosController() {
   const [reportsError, setReportsError] = useState('')
   const [selectedReportSede, setSelectedReportSede] = useState('')
   const [selectedReportSetor, setSelectedReportSetor] = useState('')
+  const [reportExpenseDetails, setReportExpenseDetails] = useState(defaultReportExpenseDetailsState())
   const [form, setForm] = useState(() => createDefaultForm())
   const [historyModalOpen, setHistoryModalOpen] = useState(false)
   const [historyDate, setHistoryDate] = useState('')
@@ -310,6 +324,7 @@ export function usePagamentosController() {
         return sedes[0]?.sede || ''
       })
       setSelectedReportSetor('')
+      setReportExpenseDetails(defaultReportExpenseDetailsState())
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
@@ -1161,6 +1176,72 @@ export function usePagamentosController() {
     setHistoryError('')
   }
 
+  const openReportExpenseDetails = async (despesa) => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (auth.username?.toLowerCase() !== 'admin') {
+      showError('Somente admin pode visualizar relatorios.')
+      return
+    }
+    if (!selectedReportSede || !selectedReportSetor || !despesa) {
+      showError('Selecione uma despesa valida do relatorio.')
+      return
+    }
+
+    setReportExpenseDetails({
+      open: true,
+      sede: selectedReportSede,
+      setor: selectedReportSetor,
+      despesa,
+      items: [],
+      totalElements: 0,
+      loading: true,
+      error: '',
+    })
+
+    try {
+      const data = await listarPagamentos(
+        auth,
+        {
+          ...filters,
+          sede: selectedReportSede,
+          setor: selectedReportSetor,
+          despesa,
+        },
+        { number: 0, size: 500 }
+      )
+
+      setReportExpenseDetails({
+        open: true,
+        sede: selectedReportSede,
+        setor: selectedReportSetor,
+        despesa,
+        items: Array.isArray(data?.content) ? data.content : [],
+        totalElements: Number(data?.totalElements ?? 0),
+        loading: false,
+        error: '',
+      })
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        setReportExpenseDetails(defaultReportExpenseDetailsState())
+        showError('Credenciais invalidas.')
+      } else {
+        setReportExpenseDetails((prev) => ({
+          ...prev,
+          loading: false,
+          error: err.message || 'Erro ao carregar lancamentos da despesa.',
+        }))
+      }
+    }
+  }
+
+  const closeReportExpenseDetails = () => {
+    setReportExpenseDetails(defaultReportExpenseDetailsState())
+  }
+
   const updateHistoryDate = (value) => {
     setHistoryDate(value)
   }
@@ -1387,6 +1468,7 @@ export function usePagamentosController() {
     reportsError,
     selectedReportSede,
     selectedReportSetor,
+    reportExpenseDetails,
     form,
     historyModalOpen,
     historyDate,
@@ -1420,6 +1502,7 @@ export function usePagamentosController() {
     openEntityModal,
     openPasswordModal,
     openReportsPage,
+    openReportExpenseDetails,
     openEditModal,
     openHistoryModal,
     closeModal,
@@ -1453,6 +1536,7 @@ export function usePagamentosController() {
     goPrevPage,
     setSelectedReportSede,
     setSelectedReportSetor,
+    closeReportExpenseDetails,
   }
 }
 
