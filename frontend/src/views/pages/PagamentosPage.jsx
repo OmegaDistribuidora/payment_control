@@ -14,7 +14,7 @@ import UserConfigModal from '../components/UserConfigModal.jsx'
 import ChangePasswordModal from '../components/ChangePasswordModal.jsx'
 import EntityConfigModal from '../components/EntityConfigModal.jsx'
 import ReportsPage from './ReportsPage.jsx'
-import { formatDate, formatMonth } from '../../models/pagamentoModel.js'
+import { formatCurrency, formatDate, formatDateTime, formatMonth } from '../../models/pagamentoModel.js'
 import '../../styles/payments.css'
 
 function PagamentosPage() {
@@ -69,6 +69,96 @@ function PagamentosPage() {
     controller.viewMode,
   ])
 
+  const handlePrint = useCallback(() => {
+    const rows = controller.viewMode === 'spreadsheet' ? controller.spreadsheetRows : controller.pagamentos
+    const periodoInicio = controller.filters?.de ? formatDate(controller.filters.de) : '--/--/----'
+    const periodoFim = controller.filters?.ate ? formatDate(controller.filters.ate) : '--/--/----'
+    const popup = window.open('', '_blank', 'width=1200,height=800')
+    if (!popup) return
+
+    const rowsHtml = (rows || [])
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapeHtml(item.codVld || item.id || '-')}</td>
+            <td>${escapeHtml(item.colaborador || item.criadoPor || '-')}</td>
+            <td>${escapeHtml(item.sede || '-')}</td>
+            <td>${escapeHtml(formatDateTime(item.dtSistema) || '-')}</td>
+            <td>${escapeHtml(formatDate(item.dtPagamento) || '-')}</td>
+            <td>${escapeHtml(formatDate(item.dtVencimento) || '-')}</td>
+            <td>${escapeHtml(item.setor || '-')}</td>
+            <td>${escapeHtml(item.despesa || '-')}</td>
+            <td>${escapeHtml(item.setorPagamento || '-')}</td>
+            <td>${escapeHtml(item.dotacao || '-')}</td>
+            <td>${escapeHtml(item.empresaFornecedor || '-')}</td>
+            <td class="align-right">${escapeHtml(formatCurrency(item.valorTotal) || '-')}</td>
+            <td>${escapeHtml(item.descricao || '-')}</td>
+          </tr>
+        `
+      )
+      .join('')
+
+    popup.document.write(`
+      <!doctype html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8" />
+          <title>Impressao de lancamentos</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 24px; color: #102133; }
+            h1 { font-size: 20px; margin: 0 0 8px; }
+            .meta { margin: 0 0 18px; font-size: 13px; color: #4b5d70; display: grid; gap: 4px; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; }
+            th, td { border: 1px solid #d7e1ea; padding: 7px 8px; vertical-align: top; }
+            th { background: #eef4fb; text-align: left; }
+            .align-right { text-align: right; }
+          </style>
+        </head>
+        <body>
+          <h1>Lancamentos visiveis</h1>
+          <div class="meta">
+            <div><strong>Visualizacao:</strong> ${escapeHtml(controller.viewMode === 'spreadsheet' ? 'Planilha' : 'Cards')}</div>
+            <div><strong>Periodo:</strong> ${escapeHtml(`${periodoInicio} ate ${periodoFim}`)}</div>
+            <div><strong>Usuario logado:</strong> ${escapeHtml(controller.auth?.username || '-')}</div>
+            <div><strong>Quantidade:</strong> ${escapeHtml(String(rows.length || 0))}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Num. Lanc.</th>
+                <th>Colaborador</th>
+                <th>Sede</th>
+                <th>Dt Registro</th>
+                <th>Dt Pagamento</th>
+                <th>Dt Vencimento</th>
+                <th>Setor</th>
+                <th>Despesa</th>
+                <th>Quem?</th>
+                <th>Dotacao</th>
+                <th>Empresa/Fornecedor</th>
+                <th>Valor</th>
+                <th>Descricao</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml || '<tr><td colspan="13">Nenhum lancamento visivel.</td></tr>'}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `)
+    popup.document.close()
+    popup.focus()
+    popup.print()
+  }, [
+    controller.auth?.username,
+    controller.filters?.ate,
+    controller.filters?.de,
+    controller.pagamentos,
+    controller.spreadsheetRows,
+    controller.viewMode,
+  ])
+
   return (
     <div className="app">
       <TopBar
@@ -103,6 +193,7 @@ function PagamentosPage() {
         filtersOpen={controller.isFiltersOpen}
         loading={controller.loading}
         onReload={handleReload}
+        onPrint={handlePrint}
         onToggleFilters={controller.toggleFilters}
       />
       <FiltersPanel
@@ -268,3 +359,12 @@ function PagamentosPage() {
 }
 
 export default PagamentosPage
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}

@@ -11,6 +11,17 @@ function RefreshIcon() {
   )
 }
 
+function PrintIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M7 3h10v4H7V3zm10 9h2v7h-3v2H8v-2H5v-7h2v5h10v-5zm-2 7v-4H9v4h6zm3-10a3 3 0 013 3v3h-2v-3a1 1 0 00-1-1H6a1 1 0 00-1 1v3H3v-3a3 3 0 013-3h12z"
+      />
+    </svg>
+  )
+}
+
 function FilterIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -22,7 +33,16 @@ function FilterIcon() {
   )
 }
 
-function FiltersBar({ filters, userLabel, totalSummary, filtersOpen, loading, onReload, onToggleFilters }) {
+function FiltersBar({
+  filters,
+  userLabel,
+  totalSummary,
+  filtersOpen,
+  loading,
+  onReload,
+  onPrint,
+  onToggleFilters,
+}) {
   const totalFormatted = formatCurrency(totalSummary?.total || 0)
   const totalEmpresaFormatted = formatCurrency(totalSummary?.totalEmpresa || 0)
   const totalFornecedorFormatted = formatCurrency(totalSummary?.totalFornecedor || 0)
@@ -49,6 +69,16 @@ function FiltersBar({ filters, userLabel, totalSummary, filtersOpen, loading, on
         <div className="filter-split-value">Funcionario: {totalFuncionarioFormatted || 'R$ --'}</div>
       </div>
       <div className="filter-tools">
+        <button
+          className="filter-tool-button"
+          type="button"
+          onClick={onPrint}
+          disabled={loading}
+          title="Imprimir"
+          aria-label="Imprimir"
+        >
+          <PrintIcon />
+        </button>
         <button
           className="filter-tool-button"
           type="button"
