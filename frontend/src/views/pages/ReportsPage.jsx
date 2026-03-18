@@ -91,10 +91,12 @@ function ReportsPage({
                   >
                     <div className="reports-node-title">{item.sede}</div>
                     <div className="reports-node-value">{formatCurrency(item.total)}</div>
-                    <div className="reports-node-meta">Empresas: {formatCurrency(item.totalEmpresa)}</div>
-                    <div className="reports-node-meta">Fornecedores: {formatCurrency(item.totalFornecedor)}</div>
-                    <div className="reports-node-meta">Funcionario: {formatCurrency(item.totalFuncionario)}</div>
-                    <div className="reports-node-meta">{item.quantidade} lancamentos</div>
+                    <div className="reports-node-meta-grid">
+                      <div className="reports-node-meta">Empresas: {formatCurrency(item.totalEmpresa)}</div>
+                      <div className="reports-node-meta">Fornecedores: {formatCurrency(item.totalFornecedor)}</div>
+                      <div className="reports-node-meta">Funcionario: {formatCurrency(item.totalFuncionario)}</div>
+                      <div className="reports-node-meta">{item.quantidade} lancamentos</div>
+                    </div>
                   </button>
                 ))
               ) : (
@@ -119,10 +121,12 @@ function ReportsPage({
                     >
                       <div className="reports-node-title">{item.setor}</div>
                       <div className="reports-node-value">{formatCurrency(item.total)}</div>
-                      <div className="reports-node-meta">Empresas: {formatCurrency(item.totalEmpresa)}</div>
-                      <div className="reports-node-meta">Fornecedores: {formatCurrency(item.totalFornecedor)}</div>
-                      <div className="reports-node-meta">Funcionario: {formatCurrency(item.totalFuncionario)}</div>
-                      <div className="reports-node-meta">{item.quantidade} lancamentos</div>
+                      <div className="reports-node-meta-grid">
+                        <div className="reports-node-meta">Empresas: {formatCurrency(item.totalEmpresa)}</div>
+                        <div className="reports-node-meta">Fornecedores: {formatCurrency(item.totalFornecedor)}</div>
+                        <div className="reports-node-meta">Funcionario: {formatCurrency(item.totalFuncionario)}</div>
+                        <div className="reports-node-meta">{item.quantidade} lancamentos</div>
+                      </div>
                     </button>
                   ))
                 ) : (
