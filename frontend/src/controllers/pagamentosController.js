@@ -45,6 +45,23 @@ import {
   listarUsuariosGestao,
   trocarMinhaSenha,
 } from '../services/usuariosService.js'
+import { apiRequest } from '../services/apiClient.js'
+
+function readSsoTokenFromHash() {
+  try {
+    const hash = String(window.location.hash || '').replace(/^#/, '')
+    if (!hash) return null
+    const params = new URLSearchParams(hash)
+    return params.get('sso')
+  } catch {
+    return null
+  }
+}
+
+function clearSsoHash() {
+  const { pathname, search } = window.location
+  window.history.replaceState(null, '', `${pathname}${search}`)
+}
 
 function buildFiltersForRange(range, currentFilters = defaultFilters) {
   const today = new Date()
@@ -148,8 +165,9 @@ function defaultReportExpenseDetailsState() {
 }
 
 export function usePagamentosController() {
+  const initialSsoToken = readSsoTokenFromHash()
   const [auth, setAuth] = useState(loadAuth())
-  const [authModalOpen, setAuthModalOpen] = useState(!auth)
+  const [authModalOpen, setAuthModalOpen] = useState(!auth && !initialSsoToken)
   const [loginOptions, setLoginOptions] = useState([])
   const [currentPage, setCurrentPage] = useState('payments')
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
@@ -515,6 +533,35 @@ export function usePagamentosController() {
     }
   }
 
+  const completeAuthSession = async (authData) => {
+    const loginFilters = buildFiltersForRange('anoAtual', defaultFilters)
+    const bundle = await listarReferencias(authData)
+    applyReferenceBundle(bundle)
+    saveCachedReferencias(bundle)
+
+    saveAuth(authData)
+    setAuth(authData)
+    setPeriodPreset('anoAtual')
+    setFilters(loginFilters)
+    setAuthModalOpen(false)
+    setPageCache({})
+    setPrefetchCache({})
+    setCurrentPage('payments')
+
+    await fetchPagamentos({
+      pageNumber: 0,
+      authOverride: authData,
+      filtersOverride: loginFilters,
+      skipCache: true,
+    })
+    if (authData.username?.toLowerCase() === 'admin') {
+      await fetchManagedLists(authData)
+    }
+    if (viewMode === 'spreadsheet') {
+      await fetchSpreadsheetRows({ authOverride: authData, filtersOverride: loginFilters })
+    }
+  }
+
   const handleAuthSave = async (credentials) => {
     const username = credentials?.username?.trim()
     const password = credentials?.password
@@ -522,35 +569,10 @@ export function usePagamentosController() {
       showError('Informe usuario e senha.')
       return
     }
-    const cleaned = { username, password }
-    const loginFilters = buildFiltersForRange('anoAtual', defaultFilters)
+    const cleaned = { username, password, authType: 'basic' }
     setLoading(true)
     try {
-      const bundle = await listarReferencias(cleaned)
-      applyReferenceBundle(bundle)
-      saveCachedReferencias(bundle)
-
-      saveAuth(cleaned)
-      setAuth(cleaned)
-      setPeriodPreset('anoAtual')
-      setFilters(loginFilters)
-      setAuthModalOpen(false)
-      setPageCache({})
-      setPrefetchCache({})
-      setCurrentPage('payments')
-
-      await fetchPagamentos({
-        pageNumber: 0,
-        authOverride: cleaned,
-        filtersOverride: loginFilters,
-        skipCache: true,
-      })
-      if (cleaned.username?.toLowerCase() === 'admin') {
-        await fetchManagedLists(cleaned)
-      }
-      if (viewMode === 'spreadsheet') {
-        await fetchSpreadsheetRows({ authOverride: cleaned, filtersOverride: loginFilters })
-      }
+      await completeAuthSession(cleaned)
     } catch (err) {
       clearAuth()
       setAuth(null)
@@ -594,6 +616,54 @@ export function usePagamentosController() {
   useEffect(() => {
     fetchLoginOptions()
   }, [])
+
+  useEffect(() => {
+    const ssoToken = readSsoTokenFromHash()
+    if (auth || !ssoToken) return
+
+    let active = true
+    setLoading(true)
+
+    ;(async () => {
+      try {
+        const data = await apiRequest('/api/auth/sso/exchange', {
+          method: 'POST',
+          body: { token: ssoToken },
+        })
+
+        const token = String(data?.token || '').trim()
+        const username = String(data?.user?.username || '').trim()
+        if (!token || !username) {
+          throw new Error('Resposta invalida do login delegado.')
+        }
+
+        const delegatedAuth = {
+          username,
+          token,
+          authType: 'bearer',
+          authorization: `Bearer ${token}`,
+        }
+
+        if (!active) return
+        await completeAuthSession(delegatedAuth)
+      } catch (err) {
+        if (!active) return
+        clearAuth()
+        setAuth(null)
+        setAuthModalOpen(true)
+        showError(err?.message || 'Falha ao validar login vindo do Ecossistema.')
+      } finally {
+        clearSsoHash()
+        if (active) {
+          setLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      active = false
+    }
+  }, [auth])
 
   useEffect(() => {
     if (auth) {

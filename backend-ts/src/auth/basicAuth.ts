@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { authenticateBasic, type AuthUser } from './users.js';
+import { authenticateBearer } from './tokenAuth.js';
 
 export function parseBasicAuthHeader(value: string | undefined): { username: string; password: string } | null {
   if (!value) return null;
@@ -20,7 +21,7 @@ export function parseBasicAuthHeader(value: string | undefined): { username: str
 }
 
 function sendUnauthorized(reply: FastifyReply): void {
-  reply.header('WWW-Authenticate', 'Basic realm="payment-control"');
+  reply.header('WWW-Authenticate', 'Basic realm="payment-control", Bearer');
   reply.status(401).send({
     timestamp: new Date().toISOString(),
     status: 401,
@@ -33,8 +34,31 @@ export async function requireBasicAuth(request: FastifyRequest, reply: FastifyRe
   if (request.method === 'OPTIONS') return;
   if (!request.url.startsWith('/api/')) return;
   if (request.method === 'GET' && request.url.startsWith('/api/auth/login-options')) return;
+  if (request.method === 'POST' && request.url.startsWith('/api/auth/sso/exchange')) return;
 
-  const parsed = parseBasicAuthHeader(request.headers.authorization);
+  const authHeader = request.headers.authorization;
+  if (typeof authHeader === 'string' && authHeader.toLowerCase().startsWith('bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (!token) {
+      sendUnauthorized(reply);
+      return;
+    }
+
+    try {
+      const authUser = await authenticateBearer(token);
+      if (!authUser) {
+        sendUnauthorized(reply);
+        return;
+      }
+      request.authUser = authUser;
+      return;
+    } catch {
+      sendUnauthorized(reply);
+      return;
+    }
+  }
+
+  const parsed = parseBasicAuthHeader(authHeader);
   if (!parsed) {
     sendUnauthorized(reply);
     return;

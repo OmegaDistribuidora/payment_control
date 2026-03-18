@@ -264,6 +264,28 @@ export async function authenticateBasic(username: string, password: string): Pro
   return { username: record.username, role: record.role, visibleUsernames: [] };
 }
 
+export async function findAuthUserByUsername(username: string): Promise<AuthUser | null> {
+  const normalizedUsername = String(username ?? '').trim().toLowerCase();
+  if (!normalizedUsername) return null;
+
+  const active = await isUserActive(normalizedUsername).catch(() => true);
+  if (!active) return null;
+
+  const stored = await findStoredUser(normalizedUsername).catch(() => null);
+  if (stored) {
+    const visibleUsernames = await listVisibleUsernames(stored.username).catch(() => []);
+    return {
+      username: stored.username,
+      role: stored.role,
+      visibleUsernames,
+    };
+  }
+
+  const record = USER_MAP.get(normalizedUsername);
+  if (!record) return null;
+  return { username: record.username, role: record.role, visibleUsernames: [] };
+}
+
 export function isPrivileged(user: AuthUser): boolean {
   return user.role === 'GERENCIA' || user.role === 'DIRETORIA' || user.role === 'RH';
 }

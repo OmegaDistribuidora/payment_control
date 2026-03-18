@@ -28,6 +28,12 @@ export const env = {
   timezone: process.env.TZ ?? 'America/Fortaleza',
   corsAllowedOrigins: parseOrigins(process.env.CORS_ALLOWED_ORIGINS),
   readOnly: parseBoolean(process.env.APP_READ_ONLY, false),
+  authTokenSecret: process.env.AUTH_TOKEN_SECRET ?? 'payment-control-dev-secret',
+  ecosystemSso: {
+    issuer: process.env.ECOSYSTEM_SSO_ISSUER ?? 'ecosistema-omega',
+    audience: process.env.ECOSYSTEM_SSO_AUDIENCE ?? 'paymentControl',
+    sharedSecret: (process.env.ECOSYSTEM_SSO_SHARED_SECRET ?? '').trim(),
+  },
   database: {
     host: process.env.PGHOST ?? 'localhost',
     port: parsePort(process.env.PGPORT, 5432),

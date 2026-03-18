@@ -1,8 +1,53 @@
 import type { FastifyInstance } from 'fastify';
+import { env } from '../../config/env.js';
 import { badRequest } from '../../http/http-error.js';
-import { changeOwnPassword, createUser, inactivateUser, listAvailableUsers, listLoginOptions, listManageableUsers } from '../../auth/users.js';
+import { changeOwnPassword, createUser, findAuthUserByUsername, inactivateUser, listAvailableUsers, listLoginOptions, listManageableUsers } from '../../auth/users.js';
+import { isConsumedSsoToken, markConsumedSsoToken, signAuthToken, verifyEcosystemSsoToken } from '../../auth/tokenAuth.js';
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
+  app.post('/api/auth/sso/exchange', async (request, reply) => {
+    if (!env.ecosystemSso.sharedSecret) {
+      return reply.status(404).send({ message: 'Login delegado indisponivel.' });
+    }
+
+    const body = request.body as { token?: unknown } | undefined;
+    const ssoToken = typeof body?.token === 'string' ? body.token.trim() : '';
+    if (!ssoToken) {
+      return reply.status(400).send({ message: 'Token SSO obrigatorio.' });
+    }
+
+    let payload;
+    try {
+      payload = verifyEcosystemSsoToken(ssoToken);
+    } catch {
+      return reply.status(401).send({ message: 'Token SSO invalido ou expirado.' });
+    }
+
+    if (isConsumedSsoToken(payload.jti)) {
+      return reply.status(401).send({ message: 'Token SSO ja utilizado.' });
+    }
+
+    const targetLogin = String(payload.targetLogin || '').trim().toLowerCase();
+    if (!targetLogin) {
+      return reply.status(400).send({ message: 'Token SSO sem login de destino.' });
+    }
+
+    const authUser = await findAuthUserByUsername(targetLogin);
+    if (!authUser) {
+      return reply.status(401).send({ message: 'Usuario alvo nao encontrado ou inativo.' });
+    }
+
+    markConsumedSsoToken(payload.jti, payload.exp);
+
+    return {
+      token: signAuthToken(authUser),
+      user: {
+        username: authUser.username,
+        role: authUser.role,
+      },
+    };
+  });
+
   app.get('/api/auth/login-options', async () => {
     const users = await listLoginOptions();
     return {
