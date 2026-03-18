@@ -20,6 +20,76 @@ function ReportsPage({
   const sedes = Array.isArray(data?.sedes) ? data.sedes : []
   const arvore = Array.isArray(data?.arvore) ? data.arvore : []
 
+  const printExpenseDetails = () => {
+    if (!expenseDetails?.open || expenseDetails.loading || expenseDetails.error) return
+
+    const popup = window.open('', '_blank', 'width=1200,height=800')
+    if (!popup) return
+
+    const rowsHtml = (expenseDetails.items || [])
+      .map(
+        (item) => `
+          <tr>
+            <td>${escapeHtml(item.codVld || item.id || '-')}</td>
+            <td>${escapeHtml(item.colaborador || item.criadoPor || '-')}</td>
+            <td>${escapeHtml(formatDateTime(item.dtSistema) || '-')}</td>
+            <td>${escapeHtml(formatDate(item.dtPagamento) || '-')}</td>
+            <td>${escapeHtml(item.empresaFornecedor || '-')}</td>
+            <td class="align-right">${escapeHtml(formatCurrency(item.valorTotal) || '-')}</td>
+            <td>${escapeHtml(item.descricao || '-')}</td>
+          </tr>
+        `
+      )
+      .join('')
+
+    popup.document.write(`
+      <!doctype html>
+      <html lang="pt-BR">
+        <head>
+          <meta charset="utf-8" />
+          <title>Impressao - ${escapeHtml(expenseDetails.despesa)}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 24px; color: #102133; }
+            h1 { font-size: 20px; margin: 0 0 8px; }
+            .meta { margin: 0 0 18px; font-size: 13px; color: #4b5d70; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #d7e1ea; padding: 8px 10px; vertical-align: top; }
+            th { background: #eef4fb; text-align: left; }
+            .align-right { text-align: right; }
+          </style>
+        </head>
+        <body>
+          <h1>Lancamentos da despesa</h1>
+          <div class="meta">
+            <div><strong>Despesa:</strong> ${escapeHtml(expenseDetails.despesa)}</div>
+            <div><strong>Setor:</strong> ${escapeHtml(expenseDetails.setor)}</div>
+            <div><strong>Sede:</strong> ${escapeHtml(expenseDetails.sede)}</div>
+            <div><strong>Quantidade:</strong> ${escapeHtml(String(expenseDetails.totalElements || 0))}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Num. Lanc.</th>
+                <th>Colaborador</th>
+                <th>Dt Registro</th>
+                <th>Dt Pagamento</th>
+                <th>Empresa/Fornecedor</th>
+                <th>Valor</th>
+                <th>Descricao</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml || '<tr><td colspan="7">Nenhum lancamento encontrado.</td></tr>'}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `)
+    popup.document.close()
+    popup.focus()
+    popup.print()
+  }
+
   const setores = useMemo(() => {
     if (!selectedSede) return []
     const grouped = new Map()
@@ -289,6 +359,14 @@ function ReportsPage({
             </div>
 
             <footer className="modal-footer">
+              <button
+                className="modal-action primary"
+                type="button"
+                onClick={printExpenseDetails}
+                disabled={expenseDetails.loading || Boolean(expenseDetails.error)}
+              >
+                Imprimir
+              </button>
               <button className="modal-action ghost" type="button" onClick={onCloseExpenseDetails}>
                 Fechar
               </button>
@@ -301,3 +379,12 @@ function ReportsPage({
 }
 
 export default ReportsPage
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
