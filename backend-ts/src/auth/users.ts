@@ -7,10 +7,19 @@ import { logAudit } from '../audit/service.js';
 
 export type Role = 'GERENCIA' | 'DIRETORIA' | 'RH' | 'MATRIZ' | 'SOBRAL' | 'CARIRI';
 
+export type UserPermissions = {
+  canViewReports: boolean;
+  canViewHistory: boolean;
+  canManageSetores: boolean;
+  canManageDespesas: boolean;
+  canManageEntities: boolean;
+};
+
 export type AuthUser = {
   username: string;
   role: Role;
   visibleUsernames: string[];
+  permissions: UserPermissions;
 };
 
 type UserRecord = {
@@ -30,6 +39,14 @@ type CreateUserPayload = {
   username?: unknown;
   password?: unknown;
   visibleUsernames?: unknown;
+  permissions?: unknown;
+};
+
+type UpdateUserPayload = {
+  username?: unknown;
+  password?: unknown;
+  visibleUsernames?: unknown;
+  permissions?: unknown;
 };
 
 type ChangePasswordPayload = {
@@ -40,6 +57,15 @@ type ChangePasswordPayload = {
 type UserStatusRow = {
   username: string;
   ativo: boolean;
+};
+
+type UserPermissionRow = {
+  username: string;
+  canViewReports: boolean;
+  canViewHistory: boolean;
+  canManageSetores: boolean;
+  canManageDespesas: boolean;
+  canManageEntities: boolean;
 };
 
 const USERS: UserRecord[] = [
@@ -86,6 +112,19 @@ async function ensureUsersTable(): Promise<void> {
           )
         `),
       )
+      .then(() =>
+        pool.query(`
+          create table if not exists app_usuario_permissao (
+            username varchar(80) primary key,
+            can_view_reports boolean not null default false,
+            can_view_history boolean not null default false,
+            can_manage_setores boolean not null default false,
+            can_manage_despesas boolean not null default false,
+            can_manage_entities boolean not null default false,
+            atualizado_em timestamp without time zone not null default timezone('America/Fortaleza', now())
+          )
+        `),
+      )
       .then(() => undefined)
       .catch((error) => {
         ensureUsersTablePromise = null;
@@ -115,6 +154,76 @@ function normalizePassword(value: unknown): string {
     badRequest('Senha deve ter entre 6 e 120 caracteres.');
   }
   return password;
+}
+
+function normalizeOptionalPassword(value: unknown): string | null {
+  const text = trimToNull(value);
+  if (!text) return null;
+  return normalizePassword(text);
+}
+
+function defaultPermissionsFor(role: Role, username: string): UserPermissions {
+  const login = username.toLowerCase();
+  const isAdmin = login === 'admin' || role === 'GERENCIA';
+  if (isAdmin) {
+    return {
+      canViewReports: true,
+      canViewHistory: true,
+      canManageSetores: true,
+      canManageDespesas: true,
+      canManageEntities: true,
+    };
+  }
+  if (role === 'RH') {
+    return {
+      canViewReports: false,
+      canViewHistory: true,
+      canManageSetores: false,
+      canManageDespesas: true,
+      canManageEntities: false,
+    };
+  }
+  if (role === 'DIRETORIA') {
+    return {
+      canViewReports: false,
+      canViewHistory: true,
+      canManageSetores: false,
+      canManageDespesas: false,
+      canManageEntities: false,
+    };
+  }
+  return {
+    canViewReports: false,
+    canViewHistory: false,
+    canManageSetores: false,
+    canManageDespesas: false,
+    canManageEntities: false,
+  };
+}
+
+function normalizePermissions(value: unknown, username: string, role: Role): UserPermissions {
+  const defaults = defaultPermissionsFor(role, username);
+  if (!value || typeof value !== 'object') return defaults;
+  const raw = value as Record<string, unknown>;
+  const requested: UserPermissions = {
+    canViewReports: raw.canViewReports === true,
+    canViewHistory: raw.canViewHistory === true,
+    canManageSetores: raw.canManageSetores === true,
+    canManageDespesas: raw.canManageDespesas === true,
+    canManageEntities: raw.canManageEntities === true,
+  };
+
+  if (username.toLowerCase() === 'admin' || role === 'GERENCIA') {
+    return {
+      canViewReports: true,
+      canViewHistory: true,
+      canManageSetores: true,
+      canManageDespesas: true,
+      canManageEntities: true,
+    };
+  }
+
+  return requested;
 }
 
 function hashPassword(password: string): string {
@@ -195,6 +304,72 @@ async function listVisibleUsernames(username: string, client?: PoolClient): Prom
   return rows.map((row) => row.visibleUsername.toLowerCase());
 }
 
+async function loadStoredPermissions(username: string, client?: PoolClient): Promise<UserPermissions | null> {
+  await ensureUsersTable();
+  const executor = client ?? pool;
+  const { rows } = await executor.query<UserPermissionRow>(
+    `
+      select
+        username,
+        can_view_reports as "canViewReports",
+        can_view_history as "canViewHistory",
+        can_manage_setores as "canManageSetores",
+        can_manage_despesas as "canManageDespesas",
+        can_manage_entities as "canManageEntities"
+      from app_usuario_permissao
+      where lower(username) = lower($1)
+      limit 1
+    `,
+    [username],
+  );
+  return rows[0] ?? null;
+}
+
+async function savePermissions(username: string, permissions: UserPermissions, client: PoolClient): Promise<void> {
+  await client.query(
+    `
+      insert into app_usuario_permissao (
+        username,
+        can_view_reports,
+        can_view_history,
+        can_manage_setores,
+        can_manage_despesas,
+        can_manage_entities,
+        atualizado_em
+      ) values ($1, $2, $3, $4, $5, $6, timezone('America/Fortaleza', now()))
+      on conflict (username)
+      do update set
+        can_view_reports = excluded.can_view_reports,
+        can_view_history = excluded.can_view_history,
+        can_manage_setores = excluded.can_manage_setores,
+        can_manage_despesas = excluded.can_manage_despesas,
+        can_manage_entities = excluded.can_manage_entities,
+        atualizado_em = excluded.atualizado_em
+    `,
+    [
+      username,
+      permissions.canViewReports,
+      permissions.canViewHistory,
+      permissions.canManageSetores,
+      permissions.canManageDespesas,
+      permissions.canManageEntities,
+    ],
+  );
+}
+
+async function buildAuthUser(username: string, role: Role, client?: PoolClient): Promise<AuthUser> {
+  const [visibleUsernames, storedPermissions] = await Promise.all([
+    listVisibleUsernames(username, client).catch(() => []),
+    loadStoredPermissions(username, client).catch(() => null),
+  ]);
+  return {
+    username,
+    role,
+    visibleUsernames,
+    permissions: storedPermissions ?? defaultPermissionsFor(role, username),
+  };
+}
+
 function normalizeVisibleUsernames(value: unknown, username: string): string[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
@@ -251,17 +426,12 @@ export async function authenticateBasic(username: string, password: string): Pro
   const stored = await findStoredUser(normalizedUsername).catch(() => null);
   if (stored) {
     if (!verifyPassword(password, stored.passwordHash)) return null;
-    const visibleUsernames = await listVisibleUsernames(stored.username).catch(() => []);
-    return {
-      username: stored.username,
-      role: stored.role,
-      visibleUsernames,
-    };
+    return buildAuthUser(stored.username, stored.role);
   }
 
   const record = USER_MAP.get(normalizedUsername);
   if (!record || record.password !== password) return null;
-  return { username: record.username, role: record.role, visibleUsernames: [] };
+  return buildAuthUser(record.username, record.role);
 }
 
 export async function findAuthUserByUsername(username: string): Promise<AuthUser | null> {
@@ -273,17 +443,12 @@ export async function findAuthUserByUsername(username: string): Promise<AuthUser
 
   const stored = await findStoredUser(normalizedUsername).catch(() => null);
   if (stored) {
-    const visibleUsernames = await listVisibleUsernames(stored.username).catch(() => []);
-    return {
-      username: stored.username,
-      role: stored.role,
-      visibleUsernames,
-    };
+    return buildAuthUser(stored.username, stored.role);
   }
 
   const record = USER_MAP.get(normalizedUsername);
   if (!record) return null;
-  return { username: record.username, role: record.role, visibleUsernames: [] };
+  return buildAuthUser(record.username, record.role);
 }
 
 export function isPrivileged(user: AuthUser): boolean {
@@ -291,15 +456,41 @@ export function isPrivileged(user: AuthUser): boolean {
 }
 
 export function canManageSetores(user: AuthUser): boolean {
-  return user.username.toLowerCase() === 'admin' || user.role === 'GERENCIA';
+  return user.permissions.canManageSetores;
 }
 
 export function canManageDespesas(user: AuthUser): boolean {
-  return user.username.toLowerCase() === 'admin' || user.role === 'GERENCIA' || user.role === 'RH';
+  return user.permissions.canManageDespesas;
 }
 
 export function canManageUsers(user: AuthUser): boolean {
   return user.username.toLowerCase() === 'admin' || user.role === 'GERENCIA';
+}
+
+export function canViewReports(user: AuthUser): boolean {
+  return user.permissions.canViewReports;
+}
+
+export function canViewHistory(user: AuthUser): boolean {
+  return user.permissions.canViewHistory;
+}
+
+export function canManageEntities(user: AuthUser): boolean {
+  return user.permissions.canManageEntities;
+}
+
+export function buildAuthProfile(user: AuthUser): {
+  username: string;
+  role: Role;
+  visibleUsernames: string[];
+  permissions: UserPermissions;
+} {
+  return {
+    username: user.username,
+    role: user.role,
+    visibleUsernames: [...(user.visibleUsernames || [])],
+    permissions: { ...user.permissions },
+  };
 }
 
 export function perfilCriador(user: AuthUser): string {
@@ -336,9 +527,30 @@ export async function listAvailableUsers(): Promise<Array<{ username: string; ro
   return dedupeUserList(all).filter((item) => statuses.get(item.username.toLowerCase()) !== false);
 }
 
-export async function listManageableUsers(): Promise<Array<{ username: string; role: Role; origem: 'padrao' | 'custom'; ativo: boolean }>> {
+export async function listManageableUsers(): Promise<Array<{ username: string; role: Role; origem: 'padrao' | 'custom'; ativo: boolean; visibleUsernames: string[]; permissions: UserPermissions }>> {
   await ensureUsersTable();
   const statuses = await listUserStatuses();
+  const [permissionRows, visibilityRows] = await Promise.all([
+    pool.query<UserPermissionRow>(
+      `
+        select
+          username,
+          can_view_reports as "canViewReports",
+          can_view_history as "canViewHistory",
+          can_manage_setores as "canManageSetores",
+          can_manage_despesas as "canManageDespesas",
+          can_manage_entities as "canManageEntities"
+        from app_usuario_permissao
+      `,
+    ),
+    pool.query<{ ownerUsername: string; visibleUsername: string }>(
+      `
+        select owner_username as "ownerUsername", visible_username as "visibleUsername"
+        from app_usuario_visibilidade
+        order by lower(owner_username), lower(visible_username)
+      `,
+    ),
+  ]);
   const { rows } = await pool.query<StoredUserRow>(
     `
       select username, password_hash as "passwordHash", role, ativo
@@ -347,11 +559,22 @@ export async function listManageableUsers(): Promise<Array<{ username: string; r
     `,
   );
 
+  const permissionMap = new Map(permissionRows.rows.map((row) => [row.username.toLowerCase(), row]));
+  const visibilityMap = new Map<string, string[]>();
+  for (const row of visibilityRows.rows) {
+    const key = row.ownerUsername.toLowerCase();
+    const current = visibilityMap.get(key) || [];
+    current.push(row.visibleUsername.toLowerCase());
+    visibilityMap.set(key, current);
+  }
+
   const customUsers = rows.map((row) => ({
     username: row.username,
     role: row.role,
     origem: 'custom' as const,
     ativo: row.ativo !== false && statuses.get(row.username.toLowerCase()) !== false,
+    visibleUsernames: visibilityMap.get(row.username.toLowerCase()) || [],
+    permissions: permissionMap.get(row.username.toLowerCase()) ?? defaultPermissionsFor(row.role, row.username),
   }));
 
   const defaults = USERS.map((item) => ({
@@ -359,6 +582,8 @@ export async function listManageableUsers(): Promise<Array<{ username: string; r
     role: item.role,
     origem: 'padrao' as const,
     ativo: statuses.get(item.username.toLowerCase()) !== false,
+    visibleUsernames: visibilityMap.get(item.username.toLowerCase()) || [],
+    permissions: permissionMap.get(item.username.toLowerCase()) ?? defaultPermissionsFor(item.role, item.username),
   }));
 
   const seen = new Set<string>();
@@ -389,6 +614,7 @@ export async function createUser(authUser: AuthUser, payload: CreateUserPayload)
   const password = normalizePassword(payload.password);
   const role: Role = 'MATRIZ';
   const visibleUsernames = normalizeVisibleUsernames(payload.visibleUsernames, username);
+  const permissions = normalizePermissions(payload.permissions, username, role);
 
   const client = await pool.connect();
   try {
@@ -421,6 +647,7 @@ export async function createUser(authUser: AuthUser, payload: CreateUserPayload)
         [username, visibleUsername],
       );
     }
+    await savePermissions(username, permissions, client);
 
     await logAudit(client, {
       entityType: 'usuario',
@@ -433,6 +660,100 @@ export async function createUser(authUser: AuthUser, payload: CreateUserPayload)
           username,
           role,
           visibleUsernames,
+          permissions,
+        },
+      },
+    });
+
+    await client.query('commit');
+    return { username, role };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateUser(authUser: AuthUser, payload: UpdateUserPayload): Promise<{ username: string; role: Role }> {
+  if (!canManageUsers(authUser)) {
+    forbidden('Acao permitida somente para admin.');
+  }
+
+  const username = normalizeUsername(payload.username);
+  const password = normalizeOptionalPassword(payload.password);
+  const existing = await findStoredUserAnyStatus(username);
+  const role: Role = existing?.role ?? USER_MAP.get(username)?.role ?? 'MATRIZ';
+  const visibleUsernames = normalizeVisibleUsernames(payload.visibleUsernames, username);
+  const permissions = normalizePermissions(payload.permissions, username, role);
+
+  if (!(await usernameExists(username))) {
+    badRequest('Usuario nao encontrado.');
+  }
+
+  const client = await pool.connect();
+  try {
+    await ensureUsersTable();
+    await client.query('begin');
+
+    const defaultRecord = USER_MAP.get(username);
+    const currentStored = await findStoredUserAnyStatus(username, client);
+
+    if (password) {
+      await client.query(
+        `
+          insert into app_usuario (username, password_hash, role, ativo)
+          values ($1, $2, $3, true)
+          on conflict (username)
+          do update set
+            password_hash = excluded.password_hash,
+            role = excluded.role,
+            ativo = true
+        `,
+        [username, hashPassword(password), role],
+      );
+    } else if (!currentStored && defaultRecord) {
+      await client.query(
+        `
+          insert into app_usuario (username, password_hash, role, ativo)
+          values ($1, $2, $3, true)
+          on conflict (username)
+          do update set role = excluded.role, ativo = true
+        `,
+        [username, hashPassword(defaultRecord.password), role],
+      );
+    }
+
+    await upsertUserStatus(username, true, client);
+    await client.query('delete from app_usuario_visibilidade where lower(owner_username) = lower($1)', [username]);
+    for (const visibleUsername of visibleUsernames) {
+      if (!(await usernameExists(visibleUsername, client))) {
+        badRequest(`Usuario visivel invalido: ${visibleUsername}.`);
+      }
+      await client.query(
+        `
+          insert into app_usuario_visibilidade (owner_username, visible_username)
+          values ($1, $2)
+          on conflict do nothing
+        `,
+        [username, visibleUsername],
+      );
+    }
+    await savePermissions(username, permissions, client);
+
+    await logAudit(client, {
+      entityType: 'usuario',
+      entityId: username,
+      action: 'ATUALIZADO',
+      actor: authUser.username,
+      details: {
+        descricao: `Usuario ${username} atualizado por ${authUser.username}`,
+        snapshot: {
+          username,
+          role,
+          visibleUsernames,
+          permissions,
+          senhaAlterada: Boolean(password),
         },
       },
     });

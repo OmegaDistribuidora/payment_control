@@ -1,7 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
-import { badRequest } from '../../http/http-error.js';
-import { changeOwnPassword, createUser, findAuthUserByUsername, inactivateUser, listAvailableUsers, listLoginOptions, listManageableUsers } from '../../auth/users.js';
+import { badRequest, forbidden } from '../../http/http-error.js';
+import {
+  buildAuthProfile,
+  canManageUsers,
+  changeOwnPassword,
+  createUser,
+  findAuthUserByUsername,
+  inactivateUser,
+  listAvailableUsers,
+  listLoginOptions,
+  listManageableUsers,
+  updateUser,
+} from '../../auth/users.js';
 import { isConsumedSsoToken, markConsumedSsoToken, signAuthToken, verifyEcosystemSsoToken } from '../../auth/tokenAuth.js';
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
@@ -67,10 +78,21 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     if (!authUser) {
       badRequest('Usuario autenticado nao encontrado.');
     }
+    if (!canManageUsers(authUser)) {
+      forbidden('Usuario sem permissao para gerenciar usuarios.');
+    }
     const users = await listManageableUsers();
     return {
       content: users,
     };
+  });
+
+  app.get('/api/auth/me', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    return buildAuthProfile(authUser);
   });
 
   app.post('/api/auth/users', async (request, reply) => {
@@ -81,6 +103,18 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const created = await createUser(authUser, request.body as Record<string, unknown>);
     reply.status(201);
     return created;
+  });
+
+  app.put('/api/auth/users/:username', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    const params = request.params as { username?: string };
+    return updateUser(authUser, {
+      ...(request.body as Record<string, unknown>),
+      username: params.username,
+    });
   });
 
   app.post('/api/auth/change-password', async (request) => {

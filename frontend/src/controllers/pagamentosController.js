@@ -39,6 +39,8 @@ import {
   salvarSetorConfig,
 } from '../services/referenciasService.js'
 import {
+  atualizarUsuario,
+  buscarMinhaSessao,
   criarUsuario,
   inativarUsuario,
   listarOpcoesLogin,
@@ -46,6 +48,14 @@ import {
   trocarMinhaSenha,
 } from '../services/usuariosService.js'
 import { apiRequest } from '../services/apiClient.js'
+
+const USER_PERMISSION_FIELDS = [
+  'canViewReports',
+  'canViewHistory',
+  'canManageSetores',
+  'canManageDespesas',
+  'canManageEntities',
+]
 
 function readSsoTokenFromHash() {
   try {
@@ -206,7 +216,7 @@ export function usePagamentosController() {
   const [despesaModalOpen, setDespesaModalOpen] = useState(false)
   const [despesaForm, setDespesaForm] = useState(defaultDespesaConfigForm())
   const [userModalOpen, setUserModalOpen] = useState(false)
-  const [userForm, setUserForm] = useState({ ...defaultUserForm })
+  const [userForm, setUserForm] = useState({ ...defaultUserForm, permissions: { ...defaultUserForm.permissions } })
   const [entityModalOpen, setEntityModalOpen] = useState(false)
   const [entityForm, setEntityForm] = useState(defaultEntityForm())
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
@@ -308,8 +318,8 @@ export function usePagamentosController() {
       setAuthModalOpen(true)
       return
     }
-    if (authData.username?.toLowerCase() !== 'admin') {
-      showError('Somente admin pode visualizar relatorios.')
+    if (!authData?.permissions?.canViewReports) {
+      showError('Relatorios indisponiveis para este usuario.')
       return
     }
 
@@ -357,14 +367,12 @@ export function usePagamentosController() {
 
   const username = auth?.username?.toLowerCase()
   const isAdmin = username === 'admin'
-  const isRh = username === 'rh'
-  const isDiretoria = username === 'diretoria'
-  const canCreateSetor = isAdmin
-  const canCreateDespesa = isAdmin || isRh
+  const canCreateSetor = Boolean(auth?.permissions?.canManageSetores)
+  const canCreateDespesa = Boolean(auth?.permissions?.canManageDespesas)
   const canCreateUser = isAdmin
-  const canManageEntities = isAdmin
-  const canViewReports = isAdmin
-  const canViewHistory = isAdmin || isDiretoria || isRh
+  const canManageEntities = Boolean(auth?.permissions?.canManageEntities)
+  const canViewReports = Boolean(auth?.permissions?.canViewReports)
+  const canViewHistory = Boolean(auth?.permissions?.canViewHistory)
 
   const fetchPagamentos = async ({ pageNumber, authOverride, filtersOverride, skipCache } = {}) => {
     const authData = authOverride || auth
@@ -535,12 +543,20 @@ export function usePagamentosController() {
 
   const completeAuthSession = async (authData) => {
     const loginFilters = buildFiltersForRange('anoAtual', defaultFilters)
-    const bundle = await listarReferencias(authData)
+    const session = await buscarMinhaSessao(authData)
+    const enrichedAuth = {
+      ...authData,
+      username: session?.username || authData.username,
+      role: session?.role || authData.role,
+      visibleUsernames: Array.isArray(session?.visibleUsernames) ? session.visibleUsernames : [],
+      permissions: session?.permissions ? { ...session.permissions } : { ...defaultUserForm.permissions },
+    }
+    const bundle = await listarReferencias(enrichedAuth)
     applyReferenceBundle(bundle)
     saveCachedReferencias(bundle)
 
-    saveAuth(authData)
-    setAuth(authData)
+    saveAuth(enrichedAuth)
+    setAuth(enrichedAuth)
     setPeriodPreset('anoAtual')
     setFilters(loginFilters)
     setAuthModalOpen(false)
@@ -550,15 +566,15 @@ export function usePagamentosController() {
 
     await fetchPagamentos({
       pageNumber: 0,
-      authOverride: authData,
+      authOverride: enrichedAuth,
       filtersOverride: loginFilters,
       skipCache: true,
     })
-    if (authData.username?.toLowerCase() === 'admin') {
-      await fetchManagedLists(authData)
+    if (enrichedAuth.username?.toLowerCase() === 'admin') {
+      await fetchManagedLists(enrichedAuth)
     }
     if (viewMode === 'spreadsheet') {
-      await fetchSpreadsheetRows({ authOverride: authData, filtersOverride: loginFilters })
+      await fetchSpreadsheetRows({ authOverride: enrichedAuth, filtersOverride: loginFilters })
     }
   }
 
@@ -738,8 +754,8 @@ export function usePagamentosController() {
       setAuthModalOpen(true)
       return
     }
-    if (!isAdmin) {
-      showError('Somente admin pode visualizar relatorios.')
+    if (!canViewReports) {
+      showError('Relatorios indisponiveis para este usuario.')
       return
     }
     setCurrentPage('reports')
@@ -757,8 +773,8 @@ export function usePagamentosController() {
       setAuthModalOpen(true)
       return
     }
-    if (auth.username?.toLowerCase() !== 'admin') {
-      showError('Somente admin pode configurar setores.')
+    if (!canCreateSetor) {
+      showError('Configuracao de setores indisponivel para este usuario.')
       return
     }
     setSetorForm(defaultSetorForm())
@@ -780,8 +796,8 @@ export function usePagamentosController() {
       setAuthModalOpen(true)
       return
     }
-    if (!(isAdmin || isRh)) {
-      showError('Somente admin e RH podem criar despesas.')
+    if (!canCreateDespesa) {
+      showError('Configuracao de despesas indisponivel para este usuario.')
       return
     }
     setDespesaForm(defaultDespesaConfigForm())
@@ -809,7 +825,7 @@ export function usePagamentosController() {
       showError('Somente admin pode gerenciar usuarios.')
       return
     }
-    setUserForm({ ...defaultUserForm })
+    setUserForm({ ...defaultUserForm, permissions: { ...defaultUserForm.permissions } })
     setUserModalOpen(true)
     setError('')
     try {
@@ -821,6 +837,7 @@ export function usePagamentosController() {
 
   const closeUserModal = () => {
     setUserModalOpen(false)
+    setUserForm({ ...defaultUserForm, permissions: { ...defaultUserForm.permissions } })
   }
 
   const openEntityModal = async () => {
@@ -828,8 +845,8 @@ export function usePagamentosController() {
       setAuthModalOpen(true)
       return
     }
-    if (!isAdmin) {
-      showError('Somente admin pode gerenciar empresas e fornecedores.')
+    if (!canManageEntities) {
+      showError('Gestao de empresas e fornecedores indisponivel para este usuario.')
       return
     }
     setEntityForm(defaultEntityForm())
@@ -847,7 +864,42 @@ export function usePagamentosController() {
   }
 
   const updateUserForm = (key, value) => {
-    setUserForm((prev) => ({ ...prev, [key]: value }))
+    setUserForm((prev) => {
+      if (key === 'mode') {
+        return {
+          ...defaultUserForm,
+          mode: value,
+          permissions: { ...defaultUserForm.permissions },
+        }
+      }
+
+      if (key === 'permissions') {
+        return {
+          ...prev,
+          permissions: {
+            ...(prev.permissions || defaultUserForm.permissions),
+            ...value,
+          },
+        }
+      }
+
+      if (key === 'targetUsername' && prev.mode === 'edit') {
+        const selected = managedUsers.find((item) => item.username === value)
+        return {
+          ...prev,
+          targetUsername: value,
+          username: selected?.username || '',
+          password: '',
+          visibleUsernames: Array.isArray(selected?.visibleUsernames) ? [...selected.visibleUsernames] : [],
+          permissions: {
+            ...defaultUserForm.permissions,
+            ...(selected?.permissions || {}),
+          },
+        }
+      }
+
+      return { ...prev, [key]: value }
+    })
   }
 
   const updateSetorForm = (key, value) => {
@@ -922,8 +974,8 @@ export function usePagamentosController() {
       setAuthModalOpen(true)
       return
     }
-    if (auth.username?.toLowerCase() !== 'admin') {
-      showError('Somente admin pode configurar setores.')
+    if (!canCreateSetor) {
+      showError('Configuracao de setores indisponivel para este usuario.')
       return
     }
 
@@ -972,8 +1024,8 @@ export function usePagamentosController() {
       setAuthModalOpen(true)
       return
     }
-    if (!(isAdmin || isRh)) {
-      showError('Somente admin e RH podem criar despesas.')
+    if (!canCreateDespesa) {
+      showError('Configuracao de despesas indisponivel para este usuario.')
       return
     }
 
@@ -1034,30 +1086,38 @@ export function usePagamentosController() {
         }
         await inativarUsuario(auth, { username: userForm.targetUsername })
       } else {
-        const username = userForm.username?.trim().toLowerCase()
+        const username = (userForm.mode === 'edit' ? userForm.targetUsername : userForm.username)?.trim().toLowerCase()
         const password = userForm.password?.trim()
         const visibleUsernames = Array.isArray(userForm.visibleUsernames) ? userForm.visibleUsernames : []
+        const permissions = USER_PERMISSION_FIELDS.reduce((acc, key) => {
+          acc[key] = userForm.permissions?.[key] === true
+          return acc
+        }, {})
         if (!username) {
           showError('Informe o login do usuario.')
           return
         }
-        if (!password) {
+        if (userForm.mode === 'create' && !password) {
           showError('Informe a senha do usuario.')
           return
         }
-        await criarUsuario(auth, { username, password, visibleUsernames })
+        if (userForm.mode === 'edit') {
+          await atualizarUsuario(auth, username, { password, visibleUsernames, permissions })
+        } else {
+          await criarUsuario(auth, { username, password, visibleUsernames, permissions })
+        }
       }
       await refreshReferences(auth)
       await fetchManagedLists(auth)
       await fetchLoginOptions()
       setUserModalOpen(false)
-      setUserForm({ ...defaultUserForm })
+      setUserForm({ ...defaultUserForm, permissions: { ...defaultUserForm.permissions } })
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
         showError('Credenciais invalidas.')
       } else {
-        showError(err.message || 'Erro ao criar usuario.')
+        showError(err.message || 'Erro ao salvar usuario.')
       }
     } finally {
       setLoading(false)
@@ -1069,8 +1129,8 @@ export function usePagamentosController() {
       setAuthModalOpen(true)
       return
     }
-    if (!isAdmin) {
-      showError('Somente admin pode gerenciar empresas e fornecedores.')
+    if (!canManageEntities) {
+      showError('Gestao de empresas e fornecedores indisponivel para este usuario.')
       return
     }
 
@@ -1251,8 +1311,8 @@ export function usePagamentosController() {
       setAuthModalOpen(true)
       return
     }
-    if (auth.username?.toLowerCase() !== 'admin') {
-      showError('Somente admin pode visualizar relatorios.')
+    if (!canViewReports) {
+      showError('Relatorios indisponiveis para este usuario.')
       return
     }
     if (!selectedReportSede || !selectedReportSetor || !despesa) {
@@ -1498,7 +1558,6 @@ export function usePagamentosController() {
     auth,
     currentPage,
     isAdmin,
-    isRh,
     canCreateUser,
     canViewReports,
     canViewHistory,

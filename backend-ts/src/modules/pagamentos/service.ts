@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { pool } from '../../db/pool.js';
-import { isPrivileged, perfilCriador, type AuthUser } from '../../auth/users.js';
+import { canViewReports, isPrivileged, perfilCriador, type AuthUser } from '../../auth/users.js';
 import { normalizeText, parsePagination, toDateOnlyInFortaleza, toLikePattern, toNumeric, trimToNull } from '../../http/utils.js';
 import { badRequest, forbidden, notFound } from '../../http/http-error.js';
 import { ensureDefaultEmpresas } from '../references/service.js';
@@ -1032,8 +1032,8 @@ export async function relatorioTotalPorSede(
   totalFornecedor: number;
   totalFuncionario: number;
 }> {
-  if (authUser.username.toLowerCase() !== 'admin') {
-    forbidden('Acao permitida somente para admin.');
+  if (!canViewReports(authUser)) {
+    forbidden('Relatorios indisponiveis para este usuario.');
   }
 
   const where = buildWhere(authUser, filtros);
@@ -1094,8 +1094,8 @@ export async function relatorioArvore(
   totalFornecedor: number;
   totalFuncionario: number;
 }> {
-  if (authUser.username.toLowerCase() !== 'admin') {
-    forbidden('Acao permitida somente para admin.');
+  if (!canViewReports(authUser)) {
+    forbidden('Relatorios indisponiveis para este usuario.');
   }
 
   const where = buildWhere(authUser, filtros);

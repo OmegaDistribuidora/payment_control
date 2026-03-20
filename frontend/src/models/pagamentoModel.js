@@ -35,6 +35,13 @@ export const defaultUserForm = {
   password: '',
   visibleUsernames: [],
   targetUsername: '',
+  permissions: {
+    canViewReports: false,
+    canViewHistory: false,
+    canManageSetores: false,
+    canManageDespesas: false,
+    canManageEntities: false,
+  },
 }
 
 export const defaultPasswordForm = {

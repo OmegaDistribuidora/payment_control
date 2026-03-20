@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { isPrivileged, type AuthUser } from '../auth/users.js';
+import { canViewHistory, type AuthUser } from '../auth/users.js';
 import { pool } from '../db/pool.js';
 import { badRequest, forbidden } from '../http/http-error.js';
 
@@ -321,8 +321,8 @@ export async function listGlobalHistory(
   authUser: AuthUser,
   query: Record<string, string | undefined>,
 ): Promise<{ content: GlobalHistoryItem[] }> {
-  if (!isPrivileged(authUser)) {
-    forbidden('Historico global disponivel apenas para admin, RH e diretoria.');
+  if (!canViewHistory(authUser)) {
+    forbidden('Auditoria indisponivel para este usuario.');
   }
 
   await ensureAuditTable();
