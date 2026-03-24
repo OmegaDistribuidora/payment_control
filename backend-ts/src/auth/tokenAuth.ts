@@ -8,6 +8,7 @@ type LocalAuthPayload = {
 
 type EcosystemSsoPayload = jwt.JwtPayload & {
   targetLogin?: string;
+  ecosystemIsAdmin?: boolean;
 };
 
 const consumedSsoTokens = new Map<string, number>();

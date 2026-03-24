@@ -48,6 +48,11 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(401).send({ message: 'Usuario alvo nao encontrado ou inativo.' });
     }
 
+    const ecosystemIsAdmin = payload.ecosystemIsAdmin === true;
+    if (authUser.username.toLowerCase() === 'admin' && !ecosystemIsAdmin) {
+      return reply.status(403).send({ message: 'Usuario do Ecossistema nao pode acessar administrador via SSO.' });
+    }
+
     markConsumedSsoToken(payload.jti, payload.exp);
 
     return {

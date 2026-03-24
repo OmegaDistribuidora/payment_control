@@ -176,8 +176,11 @@ function defaultReportExpenseDetailsState() {
 
 export function usePagamentosController() {
   const initialSsoToken = readSsoTokenFromHash()
-  const [auth, setAuth] = useState(loadAuth())
-  const [authModalOpen, setAuthModalOpen] = useState(!auth && !initialSsoToken)
+  const [auth, setAuth] = useState(() => (initialSsoToken ? null : loadAuth()))
+  const [authModalOpen, setAuthModalOpen] = useState(() => {
+    const initialAuth = initialSsoToken ? null : loadAuth()
+    return !initialAuth && !initialSsoToken
+  })
   const [loginOptions, setLoginOptions] = useState([])
   const [currentPage, setCurrentPage] = useState('payments')
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
@@ -635,10 +638,13 @@ export function usePagamentosController() {
 
   useEffect(() => {
     const ssoToken = readSsoTokenFromHash()
-    if (auth || !ssoToken) return
+    if (!ssoToken) return
 
     let active = true
     setLoading(true)
+    setAuth(null)
+    setAuthModalOpen(false)
+    clearAuth()
 
     ;(async () => {
       try {
@@ -679,7 +685,7 @@ export function usePagamentosController() {
     return () => {
       active = false
     }
-  }, [auth])
+  }, [])
 
   useEffect(() => {
     if (auth) {
