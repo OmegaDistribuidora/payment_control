@@ -23,6 +23,8 @@ import {
   somarPagamentos,
 } from '../services/pagamentosService.js'
 import {
+  editarDespesa,
+  editarSetor,
   inativarDespesa,
   inativarEmpresa,
   inativarFornecedor,
@@ -48,6 +50,11 @@ import {
   trocarMinhaSenha,
 } from '../services/usuariosService.js'
 import { apiRequest } from '../services/apiClient.js'
+import {
+  downloadPaymentsExcel,
+  downloadPaymentsPdf,
+  printPaymentsDocument,
+} from '../utils/paymentExport.js'
 
 const USER_PERMISSION_FIELDS = [
   'canViewReports',
@@ -120,6 +127,7 @@ function defaultSetorForm() {
     nome: '',
     despesas: [],
     targetNome: '',
+    novoNome: '',
   }
 }
 
@@ -129,6 +137,7 @@ function defaultDespesaConfigForm() {
     setor: '',
     despesa: '',
     targetNome: '',
+    novoNome: '',
   }
 }
 
@@ -161,9 +170,33 @@ function defaultReportsViewState() {
   }
 }
 
+function defaultReportsTimelineState() {
+  return {
+    granularity: 'day',
+    items: [],
+  }
+}
+
+function defaultExportForm(currentFilters = defaultFilters, currentPreset = 'mes') {
+  const base = buildFiltersForRange(currentPreset || 'mes', {
+    ...defaultFilters,
+    ...currentFilters,
+  })
+  return {
+    periodPreset: currentPreset || 'mes',
+    de: base.de || '',
+    ate: base.ate || '',
+    sede: currentFilters?.sede || '',
+    setor: currentFilters?.setor || '',
+    despesa: currentFilters?.despesa || '',
+  }
+}
+
 function defaultReportExpenseDetailsState() {
   return {
     open: false,
+    title: '',
+    subtitle: '',
     sede: '',
     setor: '',
     despesa: '',
@@ -171,6 +204,59 @@ function defaultReportExpenseDetailsState() {
     totalElements: 0,
     loading: false,
     error: '',
+  }
+}
+
+function calculateRangeDays(de, ate) {
+  if (!de || !ate) return 31
+  const start = new Date(`${de}T00:00:00`)
+  const end = new Date(`${ate}T00:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 31
+  return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1
+}
+
+function monthKeyToLabel(monthKey) {
+  const [year, month] = String(monthKey || '').split('-').map(Number)
+  if (!year || !month) return String(monthKey || '')
+  return new Intl.DateTimeFormat('pt-BR', { month: 'short', year: 'numeric' })
+    .format(new Date(year, month - 1, 1))
+    .replace('.', '')
+}
+
+function buildTimelineSeries(rows, filters) {
+  const rangeDays = calculateRangeDays(filters?.de, filters?.ate)
+  const granularity = rangeDays <= 59 ? 'day' : 'month'
+  const grouped = new Map()
+
+  for (const item of rows || []) {
+    const paymentDate = String(item?.dtPagamento || '').slice(0, 10)
+    if (!paymentDate) continue
+    const key = granularity === 'day' ? paymentDate : paymentDate.slice(0, 7)
+    const current = grouped.get(key) || 0
+    grouped.set(key, current + Number(item?.valorTotal || 0))
+  }
+
+  const items = [...grouped.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, total]) => ({
+      key,
+      label: granularity === 'day' ? formatDateForDocument(key) : monthKeyToLabel(key),
+      total: Number(total.toFixed(2)),
+    }))
+
+  return { granularity, items }
+}
+
+function buildReportDetailMeta(detail, filters, username) {
+  const despesa = detail?.despesa ? detail.despesa : 'Todas as despesas'
+  return {
+    titulo: detail?.despesa ? 'Lancamentos da despesa' : 'Lancamentos do total',
+    visualizacao: 'Relatorios',
+    periodo: `${filters?.de ? formatDateForDocument(filters.de) : '--/--/----'} ate ${filters?.ate ? formatDateForDocument(filters.ate) : '--/--/----'}`,
+    sede: detail?.sede || 'Todas',
+    setor: detail?.setor || 'Todos',
+    despesa,
+    usuario: username || '-',
   }
 }
 
@@ -184,8 +270,8 @@ export function usePagamentosController() {
   const [loginOptions, setLoginOptions] = useState([])
   const [currentPage, setCurrentPage] = useState('payments')
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
-  const [periodPreset, setPeriodPreset] = useState('anoAtual')
-  const [filters, setFilters] = useState(() => buildFiltersForRange('anoAtual', defaultFilters))
+  const [periodPreset, setPeriodPreset] = useState('mes')
+  const [filters, setFilters] = useState(() => buildFiltersForRange('mes', defaultFilters))
   const [pagamentos, setPagamentos] = useState([])
   const [references, setReferences] = useState({
     setores: [],
@@ -222,11 +308,17 @@ export function usePagamentosController() {
   const [userForm, setUserForm] = useState({ ...defaultUserForm, permissions: { ...defaultUserForm.permissions } })
   const [entityModalOpen, setEntityModalOpen] = useState(false)
   const [entityForm, setEntityForm] = useState(defaultEntityForm())
+  const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [exportForm, setExportForm] = useState(() => defaultExportForm(defaultFilters, 'mes'))
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
   const [passwordForm, setPasswordForm] = useState({ ...defaultPasswordForm })
   const [reportsData, setReportsData] = useState(defaultReportsViewState())
   const [reportsLoading, setReportsLoading] = useState(false)
   const [reportsError, setReportsError] = useState('')
+  const [reportsViewMode, setReportsViewMode] = useState('tree')
+  const [reportsTimeline, setReportsTimeline] = useState(defaultReportsTimelineState())
+  const [reportsTimelineLoading, setReportsTimelineLoading] = useState(false)
+  const [reportsTimelineError, setReportsTimelineError] = useState('')
   const [selectedReportSede, setSelectedReportSede] = useState('')
   const [selectedReportSetor, setSelectedReportSetor] = useState('')
   const [reportExpenseDetails, setReportExpenseDetails] = useState(defaultReportExpenseDetailsState())
@@ -356,6 +448,10 @@ export function usePagamentosController() {
       })
       setSelectedReportSetor('')
       setReportExpenseDetails(defaultReportExpenseDetailsState())
+      setReportsTimelineError('')
+      if (reportsViewMode === 'chart') {
+        await loadReportsTimeline({ authOverride: authData, filtersOverride: activeFilters })
+      }
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
@@ -365,6 +461,35 @@ export function usePagamentosController() {
       }
     } finally {
       setReportsLoading(false)
+    }
+  }
+
+  const loadReportsTimeline = async ({ authOverride, filtersOverride } = {}) => {
+    const authData = authOverride || auth
+    const activeFilters = filtersOverride || filters
+    if (!authData) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!authData?.permissions?.canViewReports) {
+      showError('Relatorios indisponiveis para este usuario.')
+      return
+    }
+
+    setReportsTimelineLoading(true)
+    setReportsTimelineError('')
+    try {
+      const rows = await fetchAllPagamentos(authData, activeFilters)
+      setReportsTimeline(buildTimelineSeries(rows, activeFilters))
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        setReportsTimelineError(err.message || 'Erro ao carregar grafico do relatorio.')
+      }
+    } finally {
+      setReportsTimelineLoading(false)
     }
   }
 
@@ -544,8 +669,27 @@ export function usePagamentosController() {
     }
   }
 
+  const fetchAllPagamentos = async (authData, activeFilters) => {
+    const firstPage = await listarPagamentos(authData, activeFilters, {
+      number: 0,
+      size: 200,
+    })
+    const totalPages = firstPage?.totalPages ?? 0
+    const allRows = [...(firstPage?.content || [])]
+
+    for (let page = 1; page < totalPages; page += 1) {
+      const pageData = await listarPagamentos(authData, activeFilters, {
+        number: page,
+        size: 200,
+      })
+      allRows.push(...(pageData?.content || []))
+    }
+
+    return allRows
+  }
+
   const completeAuthSession = async (authData) => {
-    const loginFilters = buildFiltersForRange('anoAtual', defaultFilters)
+    const loginFilters = buildFiltersForRange('mes', defaultFilters)
     const session = await buscarMinhaSessao(authData)
     const enrichedAuth = {
       ...authData,
@@ -560,8 +704,9 @@ export function usePagamentosController() {
 
     saveAuth(enrichedAuth)
     setAuth(enrichedAuth)
-    setPeriodPreset('anoAtual')
+    setPeriodPreset('mes')
     setFilters(loginFilters)
+    setExportForm(defaultExportForm(loginFilters, 'mes'))
     setAuthModalOpen(false)
     setPageCache({})
     setPrefetchCache({})
@@ -614,9 +759,11 @@ export function usePagamentosController() {
     setDespesaModalOpen(false)
     setUserModalOpen(false)
     setEntityModalOpen(false)
+    setExportModalOpen(false)
     setPasswordModalOpen(false)
-    setPeriodPreset('anoAtual')
-    setFilters(buildFiltersForRange('anoAtual', defaultFilters))
+    setPeriodPreset('mes')
+    setFilters(buildFiltersForRange('mes', defaultFilters))
+    setExportForm(defaultExportForm(defaultFilters, 'mes'))
     setTotalSummary(defaultTotalsSummary())
     setPageCache({})
     setPrefetchCache({})
@@ -624,6 +771,9 @@ export function usePagamentosController() {
     setViewMode('cards')
     setCurrentPage('payments')
     setReportsData(defaultReportsViewState())
+    setReportsViewMode('tree')
+    setReportsTimeline(defaultReportsTimelineState())
+    setReportsTimelineError('')
     setReportsError('')
     setManagedUsers([])
     setManagedSetores([])
@@ -711,8 +861,8 @@ export function usePagamentosController() {
   }
 
   const clearFilters = async () => {
-    const nextFilters = buildFiltersForRange('anoAtual', defaultFilters)
-    setPeriodPreset('anoAtual')
+    const nextFilters = buildFiltersForRange('mes', defaultFilters)
+    setPeriodPreset('mes')
     setFilters(nextFilters)
     if (currentPage === 'reports') {
       await loadReports({ filtersOverride: nextFilters })
@@ -725,7 +875,7 @@ export function usePagamentosController() {
   }
 
   const applyQuickFilter = async (range) => {
-    const nextPreset = range || 'anoAtual'
+    const nextPreset = range || 'mes'
     setPeriodPreset(nextPreset)
     if (nextPreset === 'personalizado') {
       return
@@ -765,7 +915,16 @@ export function usePagamentosController() {
       return
     }
     setCurrentPage('reports')
+    setReportsViewMode('tree')
     await loadReports()
+  }
+
+  const changeReportsViewMode = async (mode) => {
+    const nextMode = mode === 'chart' ? 'chart' : 'tree'
+    setReportsViewMode(nextMode)
+    if (nextMode === 'chart') {
+      await loadReportsTimeline()
+    }
   }
 
   const openCreateModal = () => {
@@ -869,6 +1028,39 @@ export function usePagamentosController() {
     setEntityModalOpen(false)
   }
 
+  const openExportModal = () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!isAdmin) {
+      showError('Somente admin pode exportar lancamentos.')
+      return
+    }
+    setExportForm(defaultExportForm(filters, periodPreset))
+    setExportModalOpen(true)
+    setError('')
+  }
+
+  const closeExportModal = () => {
+    setExportModalOpen(false)
+  }
+
+  const updateExportForm = (key, value) => {
+    setExportForm((prev) => {
+      if (key === 'periodPreset') {
+        const next = defaultExportForm(prev, value)
+        return { ...prev, ...next, periodPreset: value }
+      }
+      if (key === 'setor') {
+        const despesas = references?.setorDespesas?.[value] || []
+        const currentDespesa = despesas.includes(prev.despesa) ? prev.despesa : ''
+        return { ...prev, setor: value, despesa: currentDespesa }
+      }
+      return { ...prev, [key]: value }
+    })
+  }
+
   const updateUserForm = (key, value) => {
     setUserForm((prev) => {
       if (key === 'mode') {
@@ -909,11 +1101,21 @@ export function usePagamentosController() {
   }
 
   const updateSetorForm = (key, value) => {
-    setSetorForm((prev) => ({ ...prev, [key]: value }))
+    setSetorForm((prev) => {
+      if (key === 'mode') {
+        return { ...defaultSetorForm(), mode: value }
+      }
+      return { ...prev, [key]: value }
+    })
   }
 
   const updateDespesaForm = (key, value) => {
-    setDespesaForm((prev) => ({ ...prev, [key]: value }))
+    setDespesaForm((prev) => {
+      if (key === 'mode') {
+        return { ...defaultDespesaConfigForm(), mode: value }
+      }
+      return { ...prev, [key]: value }
+    })
   }
 
   const updateEntityForm = (key, value) => {
@@ -993,6 +1195,16 @@ export function usePagamentosController() {
           return
         }
         await inativarSetor(auth, { nome: setorForm.targetNome })
+      } else if (setorForm.mode === 'edit') {
+        if (!setorForm.targetNome) {
+          showError('Selecione o setor que sera editado.')
+          return
+        }
+        if (!setorForm.novoNome?.trim()) {
+          showError('Informe o novo nome do setor.')
+          return
+        }
+        await editarSetor(auth, { nomeAtual: setorForm.targetNome, novoNome: setorForm.novoNome.trim() })
       } else {
         const nome = setorForm.nome?.trim()
         const despesas = Array.isArray(setorForm.despesas)
@@ -1043,6 +1255,16 @@ export function usePagamentosController() {
           return
         }
         await inativarDespesa(auth, { nome: despesaForm.targetNome })
+      } else if (despesaForm.mode === 'edit') {
+        if (!despesaForm.targetNome) {
+          showError('Selecione a despesa que sera editada.')
+          return
+        }
+        if (!despesaForm.novoNome?.trim()) {
+          showError('Informe o novo nome da despesa.')
+          return
+        }
+        await editarDespesa(auth, { nomeAtual: despesaForm.targetNome, novoNome: despesaForm.novoNome.trim() })
       } else {
         const setor = despesaForm.setor?.trim()
         const despesa = despesaForm.despesa?.trim()
@@ -1212,6 +1434,77 @@ export function usePagamentosController() {
     }
   }
 
+  const exportPagamentos = async (format) => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!isAdmin) {
+      showError('Somente admin pode exportar lancamentos.')
+      return
+    }
+
+    const exportFilters = {
+      de: exportForm.de || '',
+      ate: exportForm.ate || '',
+      sede: exportForm.sede || '',
+      setor: exportForm.setor || '',
+      despesa: exportForm.despesa || '',
+      usuario: '',
+      dotacao: '',
+      q: '',
+    }
+
+    setLoading(true)
+    try {
+      const rows = await fetchAllPagamentos(auth, exportFilters)
+      if (!rows.length) {
+        showError('Nenhum lancamento encontrado para exportacao.')
+        return
+      }
+
+      if (format === 'excel') {
+        await downloadPaymentsExcel(rows, {
+          periodo: `${exportForm.de || '--/--/----'} ate ${exportForm.ate || '--/--/----'}`,
+          sede: exportForm.sede || 'Todas',
+          setor: exportForm.setor || 'Todos',
+          despesa: exportForm.despesa || 'Todas',
+          usuario: auth.username || '-',
+          titulo: 'Exportacao de lancamentos',
+        })
+      } else if (format === 'pdf') {
+        await downloadPaymentsPdf(rows, {
+          titulo: 'Exportacao de lancamentos',
+          visualizacao: 'Exportacao',
+          periodo: `${exportForm.de ? formatDateForDocument(exportForm.de) : '--/--/----'} ate ${exportForm.ate ? formatDateForDocument(exportForm.ate) : '--/--/----'}`,
+          sede: exportForm.sede || 'Todas',
+          setor: exportForm.setor || 'Todos',
+          despesa: exportForm.despesa || 'Todas',
+          usuario: auth.username || '-',
+        })
+      } else {
+        printPaymentsDocument(rows, {
+          titulo: 'Exportacao de lancamentos',
+          visualizacao: 'Exportacao',
+          periodo: `${exportForm.de ? formatDateForDocument(exportForm.de) : '--/--/----'} ate ${exportForm.ate ? formatDateForDocument(exportForm.ate) : '--/--/----'}`,
+          sede: exportForm.sede || 'Todas',
+          setor: exportForm.setor || 'Todos',
+          despesa: exportForm.despesa || 'Todas',
+          usuario: auth.username || '-',
+        })
+      }
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        showError(err.message || 'Erro ao exportar lancamentos.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const openEditModal = async (pagamentoOverride) => {
     const pagamento = pagamentoOverride || selectedPagamento
     if (!pagamento) {
@@ -1312,66 +1605,138 @@ export function usePagamentosController() {
     setHistoryError('')
   }
 
-  const openReportExpenseDetails = async (despesa) => {
-    if (!auth) {
-      setAuthModalOpen(true)
-      return
-    }
-    if (!canViewReports) {
-      showError('Relatorios indisponiveis para este usuario.')
-      return
-    }
-    if (!selectedReportSede || !selectedReportSetor || !despesa) {
-      showError('Selecione uma despesa valida do relatorio.')
-      return
+  const buildReportDetailRequest = (despesa = '') => {
+    if (!selectedReportSede || !selectedReportSetor) {
+      showError('Selecione uma sede e um setor validos do relatorio.')
+      return null
     }
 
-    setReportExpenseDetails({
-      open: true,
+    const detailFilters = {
+      ...filters,
       sede: selectedReportSede,
       setor: selectedReportSetor,
       despesa,
+    }
+
+    return {
+      filters: detailFilters,
+      detailState: {
+        open: true,
+        title: despesa ? 'Lancamentos da despesa' : 'Lancamentos do total',
+        subtitle: despesa
+          ? `${despesa} | ${selectedReportSetor} | ${selectedReportSede}`
+          : `${selectedReportSetor} | ${selectedReportSede} | Todas as despesas`,
+        sede: selectedReportSede,
+        setor: selectedReportSetor,
+        despesa,
+      },
+    }
+  }
+
+  const loadReportDetailItems = async (despesa = '', { openModal = true } = {}) => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return null
+    }
+    if (!canViewReports) {
+      showError('Relatorios indisponiveis para este usuario.')
+      return null
+    }
+    if (despesa && !String(despesa).trim()) {
+      showError('Selecione uma despesa valida do relatorio.')
+      return null
+    }
+
+    const request = buildReportDetailRequest(despesa)
+    if (!request) return null
+
+    const pendingState = {
+      ...request.detailState,
       items: [],
       totalElements: 0,
       loading: true,
       error: '',
-    })
+    }
+
+    if (openModal) {
+      setReportExpenseDetails(pendingState)
+    }
 
     try {
-      const data = await listarPagamentos(
-        auth,
-        {
-          ...filters,
-          sede: selectedReportSede,
-          setor: selectedReportSetor,
-          despesa,
-        },
-        { number: 0, size: 500 }
-      )
-
-      setReportExpenseDetails({
-        open: true,
-        sede: selectedReportSede,
-        setor: selectedReportSetor,
-        despesa,
-        items: Array.isArray(data?.content) ? data.content : [],
-        totalElements: Number(data?.totalElements ?? 0),
+      const rows = await fetchAllPagamentos(auth, request.filters)
+      const result = {
+        ...request.detailState,
+        open: openModal,
+        items: rows,
+        totalElements: rows.length,
         loading: false,
         error: '',
-      })
+      }
+      if (openModal) {
+        setReportExpenseDetails(result)
+      }
+      return result
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
-        setReportExpenseDetails(defaultReportExpenseDetailsState())
+        if (openModal) {
+          setReportExpenseDetails(defaultReportExpenseDetailsState())
+        }
         showError('Credenciais invalidas.')
       } else {
-        setReportExpenseDetails((prev) => ({
-          ...prev,
+        const nextState = {
+          ...pendingState,
           loading: false,
-          error: err.message || 'Erro ao carregar lancamentos da despesa.',
-        }))
+          error: err.message || 'Erro ao carregar lancamentos do relatorio.',
+        }
+        if (openModal) {
+          setReportExpenseDetails(nextState)
+        }
       }
+      return null
     }
+  }
+
+  const openReportExpenseDetails = async (despesa) => {
+    await loadReportDetailItems(despesa, { openModal: true })
+  }
+
+  const openReportTotalDetails = async () => {
+    await loadReportDetailItems('', { openModal: true })
+  }
+
+  const printCurrentReportDetails = () => {
+    if (!reportExpenseDetails?.open || reportExpenseDetails.loading || reportExpenseDetails.error) return
+    printPaymentsDocument(reportExpenseDetails.items, buildReportDetailMeta(reportExpenseDetails, filters, auth?.username))
+  }
+
+  const exportCurrentReportDetails = async (format) => {
+    if (!reportExpenseDetails?.open || reportExpenseDetails.loading || reportExpenseDetails.error) return
+    const meta = buildReportDetailMeta(reportExpenseDetails, filters, auth?.username)
+    if (format === 'excel') {
+      await downloadPaymentsExcel(reportExpenseDetails.items, meta)
+      return
+    }
+    await downloadPaymentsPdf(reportExpenseDetails.items, meta)
+  }
+
+  const runReportTotalAction = async (action) => {
+    const detail = await loadReportDetailItems('', { openModal: false })
+    if (!detail) return
+    const meta = buildReportDetailMeta(detail, filters, auth?.username)
+    if (action === 'open') {
+      setReportExpenseDetails({ ...detail, open: true })
+      return
+    }
+    if (action === 'print') {
+      printPaymentsDocument(detail.items, meta)
+      return
+    }
+    if (action === 'excel') {
+      await downloadPaymentsExcel(detail.items, meta)
+      return
+    }
+    await downloadPaymentsPdf(detail.items, meta)
   }
 
   const closeReportExpenseDetails = () => {
@@ -1596,11 +1961,17 @@ export function usePagamentosController() {
     entityForm,
     managedEmpresas,
     managedFornecedores,
+    exportModalOpen,
+    exportForm,
     passwordModalOpen,
     passwordForm,
     reportsData,
     reportsLoading,
     reportsError,
+    reportsViewMode,
+    reportsTimeline,
+    reportsTimelineLoading,
+    reportsTimelineError,
     selectedReportSede,
     selectedReportSetor,
     reportExpenseDetails,
@@ -1635,9 +2006,11 @@ export function usePagamentosController() {
     openDespesaModal,
     openUserModal,
     openEntityModal,
+    openExportModal,
     openPasswordModal,
     openReportsPage,
     openReportExpenseDetails,
+    openReportTotalDetails,
     openEditModal,
     openHistoryModal,
     closeModal,
@@ -1645,11 +2018,13 @@ export function usePagamentosController() {
     closeDespesaModal,
     closeUserModal,
     closeEntityModal,
+    closeExportModal,
     closePasswordModal,
     closeHistoryModal,
     updateHistoryDate,
     applyHistoryDateFilter,
     clearHistoryDateFilter,
+    changeReportsViewMode,
     updateForm,
     updateFilters,
     updateSetorForm,
@@ -1658,6 +2033,7 @@ export function usePagamentosController() {
     updateDespesaForm,
     updateUserForm,
     updateEntityForm,
+    updateExportForm,
     updatePasswordForm,
     toggleUserVisibility,
     savePagamento,
@@ -1665,6 +2041,10 @@ export function usePagamentosController() {
     saveDespesa,
     saveUser,
     saveEntity,
+    exportPagamentos,
+    printCurrentReportDetails,
+    exportCurrentReportDetails,
+    runReportTotalAction,
     savePassword,
     removePagamento,
     goNextPage,
@@ -1681,5 +2061,37 @@ function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase()
+}
+
+function formatDateForDocument(value) {
+  if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-')
+    return `${day}/${month}/${year}`
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return new Intl.DateTimeFormat('pt-BR').format(date)
+}
+
+function formatDateTimeForDocument(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+function formatCurrencyForDocument(value) {
+  const numberValue = Number(value || 0)
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(Number.isFinite(numberValue) ? numberValue : 0)
 }
 

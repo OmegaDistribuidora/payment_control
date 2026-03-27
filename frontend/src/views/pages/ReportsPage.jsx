@@ -5,90 +5,118 @@ function sumBy(items, selector) {
   return Number(items.reduce((sum, item) => sum + Number(selector(item) || 0), 0).toFixed(2))
 }
 
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        d="M1.5 12s3.8-6 10.5-6 10.5 6 10.5 6-3.8 6-10.5 6S1.5 12 1.5 12Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  )
+}
+
+function PrintIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M7 3h10v4H7V3zm10 9h2v7h-3v2H8v-2H5v-7h2v5h10v-5zm-2 7v-4H9v4h6zm3-10a3 3 0 013 3v3h-2v-3a1 1 0 00-1-1H6a1 1 0 00-1 1v3H3v-3a3 3 0 013-3h12z"
+      />
+    </svg>
+  )
+}
+
+function PdfIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M6 2h8l4 4v14a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm7 1.5V7h3.5L13 3.5zM8 13h1.8c1.6 0 2.7.9 2.7 2.4S11.4 18 9.8 18H8v-5zm1.4 1.2v2.6h.4c.8 0 1.3-.5 1.3-1.3s-.5-1.3-1.3-1.3h-.4zM13.4 13H17v1.2h-2.2v.8h2v1.2h-2V18h-1.4v-5zm-7.9 0H7c1.3 0 2.2.8 2.2 2s-.9 2-2.2 2H6.9V18H5.5v-5zm1.3 1.2H6.9v1.6h-.1c.6 0 1-.3 1-.8s-.4-.8-1-.8z"
+      />
+    </svg>
+  )
+}
+
+function ExcelIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M14 2h-4a2 2 0 00-2 2v2H4a2 2 0 00-2 2v8a2 2 0 002 2h4v2a2 2 0 002 2h8a2 2 0 002-2V8l-6-6zm0 2.5L17.5 8H14V4.5zM6.2 9.8h1.6l1 1.7 1-1.7h1.6l-1.7 2.6L11.5 15H9.9l-1.1-1.8L7.7 15H6.1l1.8-2.7-1.7-2.5z"
+      />
+    </svg>
+  )
+}
+
+function ReportTimelineChart({ items, granularity }) {
+  const maxValue = Math.max(...(items || []).map((item) => Number(item.total || 0)), 0)
+
+  if (!items?.length) {
+    return <div className="empty-state">Nenhum dado para gerar grafico neste periodo.</div>
+  }
+
+  return (
+    <div className="reports-chart-panel">
+      <div className="reports-chart-header">
+        <div className="reports-column-title">
+          Lancado por {granularity === 'day' ? 'dia' : 'mes'}
+        </div>
+        <div className="reports-node-meta">
+          {items.length} pontos no periodo selecionado
+        </div>
+      </div>
+      <div className="reports-chart-wrap">
+        <div className="reports-chart">
+          {items.map((item) => {
+            const height = maxValue > 0 ? Math.max((Number(item.total || 0) / maxValue) * 220, 6) : 6
+            return (
+              <div key={item.key} className="reports-chart-item" title={`${item.label}: ${formatCurrency(item.total)}`}>
+                <div className="reports-chart-value">{formatCurrency(item.total)}</div>
+                <div className="reports-chart-bar-track">
+                  <div className="reports-chart-bar" style={{ height: `${height}px` }} />
+                </div>
+                <div className="reports-chart-label">{item.label}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ReportsPage({
   data,
   loading,
   error,
+  filters,
+  periodPreset,
+  reportsViewMode,
+  reportsTimeline,
+  reportsTimelineLoading,
+  reportsTimelineError,
   selectedSede,
   selectedSetor,
   expenseDetails,
   onSelectSede,
   onSelectSetor,
   onOpenExpenseDetails,
+  onOpenTotalDetails,
   onCloseExpenseDetails,
+  onPrintExpenseDetails,
+  onExportExpenseDetails,
+  onRunReportTotalAction,
+  onChangeReportsViewMode,
+  onApplyQuickFilter,
 }) {
   const sedes = Array.isArray(data?.sedes) ? data.sedes : []
   const arvore = Array.isArray(data?.arvore) ? data.arvore : []
-
-  const printExpenseDetails = () => {
-    if (!expenseDetails?.open || expenseDetails.loading || expenseDetails.error) return
-
-    const popup = window.open('', '_blank', 'width=1200,height=800')
-    if (!popup) return
-
-    const rowsHtml = (expenseDetails.items || [])
-      .map(
-        (item) => `
-          <tr>
-            <td>${escapeHtml(item.codVld || item.id || '-')}</td>
-            <td>${escapeHtml(item.colaborador || item.criadoPor || '-')}</td>
-            <td>${escapeHtml(formatDateTime(item.dtSistema) || '-')}</td>
-            <td>${escapeHtml(formatDate(item.dtPagamento) || '-')}</td>
-            <td>${escapeHtml(item.empresaFornecedor || '-')}</td>
-            <td class="align-right">${escapeHtml(formatCurrency(item.valorTotal) || '-')}</td>
-            <td>${escapeHtml(item.descricao || '-')}</td>
-          </tr>
-        `
-      )
-      .join('')
-
-    popup.document.write(`
-      <!doctype html>
-      <html lang="pt-BR">
-        <head>
-          <meta charset="utf-8" />
-          <title>Impressao - ${escapeHtml(expenseDetails.despesa)}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 24px; color: #102133; }
-            h1 { font-size: 20px; margin: 0 0 8px; }
-            .meta { margin: 0 0 18px; font-size: 13px; color: #4b5d70; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th, td { border: 1px solid #d7e1ea; padding: 8px 10px; vertical-align: top; }
-            th { background: #eef4fb; text-align: left; }
-            .align-right { text-align: right; }
-          </style>
-        </head>
-        <body>
-          <h1>Lancamentos da despesa</h1>
-          <div class="meta">
-            <div><strong>Despesa:</strong> ${escapeHtml(expenseDetails.despesa)}</div>
-            <div><strong>Setor:</strong> ${escapeHtml(expenseDetails.setor)}</div>
-            <div><strong>Sede:</strong> ${escapeHtml(expenseDetails.sede)}</div>
-            <div><strong>Quantidade:</strong> ${escapeHtml(String(expenseDetails.totalElements || 0))}</div>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Num. Lanc.</th>
-                <th>Colaborador</th>
-                <th>Dt Registro</th>
-                <th>Dt Pagamento</th>
-                <th>Empresa/Fornecedor</th>
-                <th>Valor</th>
-                <th>Descricao</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml || '<tr><td colspan="7">Nenhum lancamento encontrado.</td></tr>'}
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `)
-    popup.document.close()
-    popup.focus()
-    popup.print()
-  }
 
   const setores = useMemo(() => {
     if (!selectedSede) return []
@@ -122,7 +150,25 @@ function ReportsPage({
 
   return (
     <section className="reports-page">
-      <div className="sheet-title">Relatorios</div>
+      <div className="reports-title-row">
+        <div className="sheet-title">Relatorios</div>
+        <div className="reports-view-toggle">
+          <button
+            type="button"
+            className={`reports-view-btn${reportsViewMode === 'tree' ? ' active' : ''}`}
+            onClick={() => onChangeReportsViewMode('tree')}
+          >
+            Arvore
+          </button>
+          <button
+            type="button"
+            className={`reports-view-btn${reportsViewMode === 'chart' ? ' active' : ''}`}
+            onClick={() => onChangeReportsViewMode('chart')}
+          >
+            Graficos
+          </button>
+        </div>
+      </div>
 
       <div className="reports-summary-grid">
         <div className="report-summary-card">
@@ -146,7 +192,41 @@ function ReportsPage({
       {loading ? <div className="loading-hint">Carregando relatorio...</div> : null}
       {error ? <div className="modal-error">{error}</div> : null}
 
-      {!loading && !error ? (
+      {!loading && !error && reportsViewMode === 'chart' ? (
+        <div className="reports-chart-section">
+          <div className="reports-chart-filters">
+            {[
+              ['hoje', 'Hoje'],
+              ['semana', 'Semana'],
+              ['mes', 'Mes'],
+              ['ultimos30', 'Ult. 30 dias'],
+              ['mesAnterior', 'Mes anterior'],
+              ['anoAtual', 'Ano atual'],
+              ['anoPassado', 'Ano passado'],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`reports-view-btn${periodPreset === value ? ' active' : ''}`}
+                onClick={() => onApplyQuickFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {reportsTimelineLoading ? <div className="loading-hint">Carregando grafico...</div> : null}
+          {reportsTimelineError ? <div className="modal-error">{reportsTimelineError}</div> : null}
+          {!reportsTimelineLoading && !reportsTimelineError ? (
+            <ReportTimelineChart
+              items={reportsTimeline?.items || []}
+              granularity={reportsTimeline?.granularity || 'day'}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
+      {!loading && !error && reportsViewMode === 'tree' ? (
         <div className="reports-layout">
           <div className="reports-column">
             <div className="reports-column-title">Sedes</div>
@@ -223,7 +303,7 @@ function ReportsPage({
                       <th className="spreadsheet-head align-left">Despesa</th>
                       <th className="spreadsheet-head align-right">Total</th>
                       <th className="spreadsheet-head align-center">Lanc.</th>
-                      <th className="spreadsheet-head align-center">Ver</th>
+                      <th className="spreadsheet-head align-center">Acoes</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -239,25 +319,17 @@ function ReportsPage({
                           </td>
                           <td className="spreadsheet-cell align-center">{item.quantidade}</td>
                           <td className="spreadsheet-cell align-center">
-                            <button
-                              type="button"
-                              className="spreadsheet-icon-btn edit"
-                              title={`Ver lancamentos de ${item.despesa}`}
-                              aria-label={`Ver lancamentos de ${item.despesa}`}
-                              onClick={() => onOpenExpenseDetails(item.despesa)}
-                            >
-                              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                                <path
-                                  d="M1.5 12s3.8-6 10.5-6 10.5 6 10.5 6-3.8 6-10.5 6S1.5 12 1.5 12Z"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                                <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                              </svg>
-                            </button>
+                            <div className="reports-actions">
+                              <button
+                                type="button"
+                                className="spreadsheet-icon-btn edit"
+                                title={`Ver lancamentos de ${item.despesa}`}
+                                aria-label={`Ver lancamentos de ${item.despesa}`}
+                                onClick={() => onOpenExpenseDetails(item.despesa)}
+                              >
+                                <EyeIcon />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -282,7 +354,46 @@ function ReportsPage({
                         <td className="spreadsheet-head align-center">
                           {despesas.reduce((sum, item) => sum + Number(item.quantidade || 0), 0)}
                         </td>
-                        <td className="spreadsheet-head align-center">-</td>
+                        <td className="spreadsheet-head align-center">
+                          <div className="reports-actions reports-actions-inline">
+                            <button
+                              type="button"
+                              className="spreadsheet-icon-btn edit"
+                              title="Ver todos os lancamentos do total"
+                              aria-label="Ver todos os lancamentos do total"
+                              onClick={onOpenTotalDetails}
+                            >
+                              <EyeIcon />
+                            </button>
+                            <button
+                              type="button"
+                              className="spreadsheet-icon-btn edit"
+                              title="Exportar total em PDF"
+                              aria-label="Exportar total em PDF"
+                              onClick={() => onRunReportTotalAction('pdf')}
+                            >
+                              <PdfIcon />
+                            </button>
+                            <button
+                              type="button"
+                              className="spreadsheet-icon-btn edit"
+                              title="Exportar total em Excel"
+                              aria-label="Exportar total em Excel"
+                              onClick={() => onRunReportTotalAction('excel')}
+                            >
+                              <ExcelIcon />
+                            </button>
+                            <button
+                              type="button"
+                              className="spreadsheet-icon-btn edit"
+                              title="Imprimir total"
+                              aria-label="Imprimir total"
+                              onClick={() => onRunReportTotalAction('print')}
+                            >
+                              <PrintIcon />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     </tfoot>
                   ) : null}
@@ -300,9 +411,9 @@ function ReportsPage({
           <div className="modal modal-history-detail report-expense-modal">
             <header className="modal-header">
               <div>
-                <div className="modal-title">Lancamentos da despesa</div>
+                <div className="modal-title">{expenseDetails.title || 'Lancamentos do relatorio'}</div>
                 <div className="modal-subtitle">
-                  {expenseDetails.despesa} | {expenseDetails.setor} | {expenseDetails.sede}
+                  {expenseDetails.subtitle || `${expenseDetails.despesa} | ${expenseDetails.setor} | ${expenseDetails.sede}`}
                 </div>
               </div>
               <button className="modal-close" type="button" onClick={onCloseExpenseDetails} aria-label="Fechar">
@@ -347,7 +458,7 @@ function ReportsPage({
                         ) : (
                           <tr>
                             <td className="spreadsheet-cell align-center" colSpan={7}>
-                              Nenhum lancamento encontrado para esta despesa.
+                              Nenhum lancamento encontrado para este recorte.
                             </td>
                           </tr>
                         )}
@@ -358,11 +469,27 @@ function ReportsPage({
               ) : null}
             </div>
 
-            <footer className="modal-footer">
+            <footer className="modal-footer report-expense-footer">
               <button
                 className="modal-action primary"
                 type="button"
-                onClick={printExpenseDetails}
+                onClick={() => onExportExpenseDetails('pdf')}
+                disabled={expenseDetails.loading || Boolean(expenseDetails.error)}
+              >
+                Exportar PDF
+              </button>
+              <button
+                className="modal-action primary"
+                type="button"
+                onClick={() => onExportExpenseDetails('excel')}
+                disabled={expenseDetails.loading || Boolean(expenseDetails.error)}
+              >
+                Exportar Excel
+              </button>
+              <button
+                className="modal-action primary"
+                type="button"
+                onClick={onPrintExpenseDetails}
                 disabled={expenseDetails.loading || Boolean(expenseDetails.error)}
               >
                 Imprimir
@@ -379,12 +506,3 @@ function ReportsPage({
 }
 
 export default ReportsPage
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}

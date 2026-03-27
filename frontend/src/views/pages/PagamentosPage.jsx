@@ -13,6 +13,7 @@ import DespesaConfigModal from '../components/DespesaConfigModal.jsx'
 import UserConfigModal from '../components/UserConfigModal.jsx'
 import ChangePasswordModal from '../components/ChangePasswordModal.jsx'
 import EntityConfigModal from '../components/EntityConfigModal.jsx'
+import ExportModal from '../components/ExportModal.jsx'
 import ReportsPage from './ReportsPage.jsx'
 import { formatCurrency, formatDate, formatDateTime, formatMonth } from '../../models/pagamentoModel.js'
 import '../../styles/payments.css'
@@ -159,6 +160,14 @@ function PagamentosPage() {
     controller.viewMode,
   ])
 
+  const handleExportPdf = useCallback(async () => {
+    await controller.exportPagamentos('pdf')
+  }, [controller.exportPagamentos])
+
+  const handleExportExcel = useCallback(async () => {
+    await controller.exportPagamentos('excel')
+  }, [controller.exportPagamentos])
+
   return (
     <div className="app">
       <TopBar
@@ -171,11 +180,10 @@ function PagamentosPage() {
         onConfigDespesa={controller.openDespesaModal}
         onConfigUser={controller.openUserModal}
         onConfigEntity={controller.openEntityModal}
+        onOpenExport={controller.openExportModal}
         onChangePassword={controller.openPasswordModal}
         onOpenReports={controller.openReportsPage}
         onOpenPayments={controller.openPaymentsPage}
-        onToggleView={controller.toggleViewMode}
-        viewMode={controller.viewMode}
         disableHistory={false}
         isAuthenticated={Boolean(controller.auth)}
         onAuthAction={handleAuthAction}
@@ -183,6 +191,7 @@ function PagamentosPage() {
         showDespesaButton={controller.canCreateDespesa}
         showUserButton={controller.canCreateUser}
         showEntityButton={controller.canManageEntities}
+        showExportButton={controller.isAdmin}
         showReportsButton={controller.canViewReports}
         showHistoryButton={controller.canViewHistory}
       />
@@ -192,8 +201,11 @@ function PagamentosPage() {
         totalSummary={controller.totalSummary}
         filtersOpen={controller.isFiltersOpen}
         loading={controller.loading}
+        viewMode={controller.viewMode}
+        showViewToggle={controller.currentPage === 'payments'}
         onReload={handleReload}
         onPrint={handlePrint}
+        onToggleView={controller.toggleViewMode}
         onToggleFilters={controller.toggleFilters}
       />
       <FiltersPanel
@@ -214,13 +226,25 @@ function PagamentosPage() {
           data={controller.reportsData}
           loading={controller.reportsLoading}
           error={controller.reportsError}
+          filters={controller.filters}
+          periodPreset={controller.periodPreset}
+          reportsViewMode={controller.reportsViewMode}
+          reportsTimeline={controller.reportsTimeline}
+          reportsTimelineLoading={controller.reportsTimelineLoading}
+          reportsTimelineError={controller.reportsTimelineError}
           selectedSede={controller.selectedReportSede}
           selectedSetor={controller.selectedReportSetor}
           expenseDetails={controller.reportExpenseDetails}
           onSelectSede={controller.setSelectedReportSede}
           onSelectSetor={controller.setSelectedReportSetor}
           onOpenExpenseDetails={controller.openReportExpenseDetails}
+          onOpenTotalDetails={controller.openReportTotalDetails}
           onCloseExpenseDetails={controller.closeReportExpenseDetails}
+          onPrintExpenseDetails={controller.printCurrentReportDetails}
+          onExportExpenseDetails={controller.exportCurrentReportDetails}
+          onRunReportTotalAction={controller.runReportTotalAction}
+          onChangeReportsViewMode={controller.changeReportsViewMode}
+          onApplyQuickFilter={controller.applyQuickFilter}
         />
       ) : controller.viewMode === 'cards' ? (
         <>
@@ -344,6 +368,17 @@ function PagamentosPage() {
         onChange={controller.updateEntityForm}
         onSave={controller.saveEntity}
         onClose={controller.closeEntityModal}
+      />
+      <ExportModal
+        isOpen={controller.exportModalOpen}
+        form={controller.exportForm}
+        references={controller.references}
+        loading={controller.loading}
+        error={controller.error}
+        onChange={controller.updateExportForm}
+        onExportPdf={handleExportPdf}
+        onExportExcel={handleExportExcel}
+        onClose={controller.closeExportModal}
       />
       <ChangePasswordModal
         isOpen={controller.passwordModalOpen}

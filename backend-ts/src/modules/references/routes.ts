@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import {
   clearCache,
+  editarDespesa,
+  editarSetor,
   listColaboradores,
   listDespesas,
   listDotacoes,
@@ -61,12 +63,28 @@ export async function registerReferenceRoutes(app: FastifyInstance): Promise<voi
     return salvarSetorConfig(authUser, request.body);
   });
 
+  app.post('/api/referencias/setores/editar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    return editarSetor(authUser, request.body);
+  });
+
   app.post('/api/referencias/despesas/config', async (request) => {
     const authUser = request.authUser;
     if (!authUser) {
       badRequest('Usuario autenticado nao encontrado.');
     }
     return salvarDespesaConfig(authUser, request.body);
+  });
+
+  app.post('/api/referencias/despesas/editar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    return editarDespesa(authUser, request.body);
   });
 
   app.post('/api/referencias/empresas-fornecedores/config', async (request) => {

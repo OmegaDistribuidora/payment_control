@@ -33,14 +33,36 @@ function FilterIcon() {
   )
 }
 
+function CardsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path fill="currentColor" d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" />
+    </svg>
+  )
+}
+
+function TableIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zm0 3v3h16V8H4zm0 5v4h4v-4H4zm6 0v4h4v-4h-4zm6 0v4h4v-4h-4z"
+      />
+    </svg>
+  )
+}
+
 function FiltersBar({
   filters,
   userLabel,
   totalSummary,
   filtersOpen,
   loading,
+  viewMode,
+  showViewToggle,
   onReload,
   onPrint,
+  onToggleView,
   onToggleFilters,
 }) {
   const totalFormatted = formatCurrency(totalSummary?.total || 0)
@@ -89,6 +111,18 @@ function FiltersBar({
         >
           <RefreshIcon />
         </button>
+        {showViewToggle ? (
+          <button
+            className="filter-tool-button"
+            type="button"
+            onClick={onToggleView}
+            disabled={loading}
+            title={viewMode === 'spreadsheet' ? 'Mostrar cards' : 'Mostrar planilha'}
+            aria-label={viewMode === 'spreadsheet' ? 'Mostrar cards' : 'Mostrar planilha'}
+          >
+            {viewMode === 'spreadsheet' ? <CardsIcon /> : <TableIcon />}
+          </button>
+        ) : null}
         <button
           className={`filter-tool-button filter-tool-toggle${filtersOpen ? ' active' : ''}`}
           type="button"

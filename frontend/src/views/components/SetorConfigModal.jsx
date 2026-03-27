@@ -34,7 +34,7 @@ function SetorConfigModal({
         <header className="modal-header">
           <div>
             <div className="modal-title">Setor</div>
-            <div className="modal-subtitle">Crie um novo setor ou inative um setor existente</div>
+            <div className="modal-subtitle">Crie, edite ou inative um setor existente</div>
           </div>
           <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
             x
@@ -51,6 +51,7 @@ function SetorConfigModal({
               disabled={loading}
             >
               <option value="create">Criar novo</option>
+              <option value="edit">Editar nome</option>
               <option value="inactivate">Inativar</option>
             </select>
           </div>
@@ -74,6 +75,39 @@ function SetorConfigModal({
                   ))}
               </select>
             </div>
+          ) : form?.mode === 'edit' ? (
+            <>
+              <div className="modal-field">
+                <label className="modal-label">Setor</label>
+                <select
+                  className="modal-input"
+                  value={form?.targetNome || ''}
+                  onChange={(event) => onChange('targetNome', event.target.value)}
+                  disabled={loading}
+                >
+                  <option value="">Selecione...</option>
+                  {managedItems
+                    .filter((item) => item.ativo)
+                    .map((item) => (
+                      <option key={`setor-edit-${item.codigo}`} value={item.nome}>
+                        {item.nome}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="modal-field">
+                <label className="modal-label">Novo nome do setor</label>
+                <input
+                  className="modal-input"
+                  type="text"
+                  value={form?.novoNome || ''}
+                  onChange={(event) => onChange('novoNome', event.target.value)}
+                  placeholder="Ex.: Juridico"
+                  disabled={loading}
+                />
+              </div>
+            </>
           ) : (
             <>
           <div className="modal-field">
@@ -146,7 +180,7 @@ function SetorConfigModal({
             Cancelar
           </button>
           <button className="modal-action primary" type="button" onClick={onSave} disabled={loading}>
-            {loading ? 'Salvando...' : form?.mode === 'inactivate' ? 'Inativar setor' : 'Salvar setor'}
+            {loading ? 'Salvando...' : form?.mode === 'inactivate' ? 'Inativar setor' : form?.mode === 'edit' ? 'Salvar alteracoes' : 'Salvar setor'}
           </button>
         </footer>
       </div>

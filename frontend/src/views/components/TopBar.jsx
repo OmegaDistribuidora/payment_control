@@ -11,10 +11,9 @@ function TopBar({
   onConfigUser,
   onConfigEntity,
   onChangePassword,
+  onOpenExport,
   onOpenReports,
   onOpenPayments,
-  onToggleView,
-  viewMode,
   disableHistory,
   isAuthenticated,
   onAuthAction,
@@ -22,6 +21,7 @@ function TopBar({
   showDespesaButton,
   showUserButton,
   showEntityButton,
+  showExportButton,
   showReportsButton,
   showHistoryButton,
 }) {
@@ -109,6 +109,11 @@ function TopBar({
                 </button>
               )
             ) : null}
+            {showExportButton ? (
+              <button className="topbar-menu-action" type="button" onClick={runMenuAction(onOpenExport)}>
+                Exportar
+              </button>
+            ) : null}
             {hasOptions ? (
               <div className={`topbar-submenu${optionsOpen ? ' is-open' : ''}`}>
                 <button
@@ -143,11 +148,6 @@ function TopBar({
                   </div>
                 ) : null}
               </div>
-            ) : null}
-            {currentPage === 'payments' ? (
-              <button className="topbar-menu-action" type="button" onClick={runMenuAction(onToggleView)}>
-                {viewMode === 'spreadsheet' ? 'Cards' : 'Planilha'}
-              </button>
             ) : null}
             {isAuthenticated ? (
               <button className="topbar-menu-action" type="button" onClick={runMenuAction(onChangePassword)}>

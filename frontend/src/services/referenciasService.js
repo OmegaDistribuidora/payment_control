@@ -12,8 +12,16 @@ export function salvarSetorConfig(auth, payload) {
   return apiRequest('/api/referencias/setores/config', { method: 'POST', auth, body: payload })
 }
 
+export function editarSetor(auth, payload) {
+  return apiRequest('/api/referencias/setores/editar', { method: 'POST', auth, body: payload })
+}
+
 export function salvarDespesaConfig(auth, payload) {
   return apiRequest('/api/referencias/despesas/config', { method: 'POST', auth, body: payload })
+}
+
+export function editarDespesa(auth, payload) {
+  return apiRequest('/api/referencias/despesas/editar', { method: 'POST', auth, body: payload })
 }
 
 export function salvarEmpresaFornecedorConfig(auth, payload) {

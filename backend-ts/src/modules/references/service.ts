@@ -386,6 +386,128 @@ export async function inativarFornecedor(authUser: AuthUser, nome: unknown): Pro
   return inactivateReference(authUser, 'ref_fornecedor', 'fornecedor', nome);
 }
 
+async function updateReferenceName(
+  authUser: AuthUser,
+  options: {
+    table: 'ref_setor' | 'ref_despesa';
+    entityType: 'setor' | 'despesa';
+    oldNameRaw: unknown;
+    newNameRaw: unknown;
+  },
+): Promise<ReferenceBundle> {
+  const isSetor = options.entityType === 'setor';
+  if (isSetor) {
+    if (!canManageSetores(authUser)) {
+      forbidden('Acao permitida somente para usuarios com acesso a setor.');
+    }
+  } else if (!canManageDespesas(authUser)) {
+    forbidden('Acao permitida somente para usuarios com acesso a despesa.');
+  }
+
+  const oldName = trimToNull(options.oldNameRaw);
+  const newName = trimToNull(options.newNameRaw);
+  if (!oldName) {
+    badRequest(`Nome atual de ${options.entityType} obrigatorio.`);
+  }
+  if (!newName) {
+    badRequest(`Novo nome de ${options.entityType} obrigatorio.`);
+  }
+  if (oldName.toLowerCase() === newName.toLowerCase()) {
+    badRequest('Informe um nome diferente do atual.');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const codigo = await findCodigoByNome(client, options.table, oldName);
+    if (!codigo) {
+      badRequest(`${options.entityType === 'setor' ? 'Setor' : 'Despesa'} nao encontrado.`);
+    }
+    const existingTarget = await findCodigoByNome(client, options.table, newName);
+    if (existingTarget) {
+      badRequest(`${options.entityType === 'setor' ? 'Setor' : 'Despesa'} com esse nome ja existe.`);
+    }
+
+    await client.query(`update ${options.table} set nome = $1 where codigo = $2`, [newName, codigo]);
+
+    if (isSetor) {
+      await client.query(
+        `
+          update ref_dspcent
+          set nome = $1
+          where lower(nome) = lower($2)
+        `,
+        [newName, oldName],
+      );
+      await client.query(
+        `
+          update pagamentos
+          set
+            setor = case when lower(setor) = lower($2) then $1 else setor end,
+            setor_norm = case when lower(setor) = lower($2) then lower($1) else setor_norm end,
+            setor_pagamento = case when lower(setor_pagamento) = lower($2) then $1 else setor_pagamento end
+          where lower(setor) = lower($2) or lower(setor_pagamento) = lower($2)
+        `,
+        [newName, oldName],
+      );
+    } else {
+      await client.query(
+        `
+          update pagamentos
+          set
+            despesa = $1,
+            despesa_norm = lower($1)
+          where lower(despesa) = lower($2)
+        `,
+        [newName, oldName],
+      );
+    }
+
+    await logAudit(client, {
+      entityType: options.entityType,
+      entityId: newName,
+      action: 'ATUALIZADO',
+      actor: authUser.username,
+      details: {
+        descricao: `${options.entityType === 'setor' ? 'Setor' : 'Despesa'} ${oldName} renomeado para ${newName} por ${authUser.username}`,
+        changes: {
+          nome: { de: oldName, para: newName },
+        },
+      },
+    });
+
+    await client.query('commit');
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  clearCache();
+  return listTudo();
+}
+
+export async function editarSetor(authUser: AuthUser, payload: unknown): Promise<ReferenceBundle> {
+  const body = (payload ?? {}) as { nomeAtual?: unknown; novoNome?: unknown };
+  return updateReferenceName(authUser, {
+    table: 'ref_setor',
+    entityType: 'setor',
+    oldNameRaw: body.nomeAtual,
+    newNameRaw: body.novoNome,
+  });
+}
+
+export async function editarDespesa(authUser: AuthUser, payload: unknown): Promise<ReferenceBundle> {
+  const body = (payload ?? {}) as { nomeAtual?: unknown; novoNome?: unknown };
+  return updateReferenceName(authUser, {
+    table: 'ref_despesa',
+    entityType: 'despesa',
+    oldNameRaw: body.nomeAtual,
+    newNameRaw: body.novoNome,
+  });
+}
+
 export async function salvarSetorConfig(authUser: AuthUser, payload: unknown): Promise<ReferenceBundle> {
   if (!canManageSetores(authUser)) {
     forbidden('Acao permitida somente para admin.');

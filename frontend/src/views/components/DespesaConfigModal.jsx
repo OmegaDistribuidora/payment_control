@@ -18,7 +18,7 @@ function DespesaConfigModal({
         <header className="modal-header">
           <div>
             <div className="modal-title">Despesa</div>
-            <div className="modal-subtitle">Crie uma nova despesa ou inative uma existente</div>
+            <div className="modal-subtitle">Crie, edite ou inative uma despesa existente</div>
           </div>
           <button className="modal-close" type="button" onClick={onClose} aria-label="Fechar">
             x
@@ -30,6 +30,7 @@ function DespesaConfigModal({
             <label className="modal-label">Acao</label>
             <select className="modal-input" value={form?.mode || 'create'} onChange={(event) => onChange('mode', event.target.value)} disabled={loading}>
               <option value="create">Criar novo</option>
+              <option value="edit">Editar nome</option>
               {allowInactivate ? <option value="inactivate">Inativar</option> : null}
             </select>
           </div>
@@ -45,9 +46,37 @@ function DespesaConfigModal({
                     <option key={`despesa-manage-${item.codigo}`} value={item.nome}>
                       {item.nome}
                     </option>
-                  ))}
+                ))}
               </select>
             </div>
+          ) : form?.mode === 'edit' ? (
+            <>
+              <div className="modal-field">
+                <label className="modal-label">Despesa</label>
+                <select className="modal-input" value={form?.targetNome || ''} onChange={(event) => onChange('targetNome', event.target.value)} disabled={loading}>
+                  <option value="">Selecione...</option>
+                  {managedItems
+                    .filter((item) => item.ativo)
+                    .map((item) => (
+                      <option key={`despesa-edit-${item.codigo}`} value={item.nome}>
+                        {item.nome}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="modal-field">
+                <label className="modal-label">Novo nome da despesa</label>
+                <input
+                  className="modal-input"
+                  type="text"
+                  value={form?.novoNome || ''}
+                  onChange={(event) => onChange('novoNome', event.target.value)}
+                  placeholder="Ex.: Vale Refeicao"
+                  disabled={loading}
+                />
+              </div>
+            </>
           ) : (
             <>
               <div className="modal-field">
@@ -84,7 +113,7 @@ function DespesaConfigModal({
             Cancelar
           </button>
           <button className="modal-action primary" type="button" onClick={onSave} disabled={loading}>
-            {loading ? 'Salvando...' : allowInactivate && form?.mode === 'inactivate' ? 'Inativar despesa' : 'Salvar despesa'}
+            {loading ? 'Salvando...' : allowInactivate && form?.mode === 'inactivate' ? 'Inativar despesa' : form?.mode === 'edit' ? 'Salvar alteracoes' : 'Salvar despesa'}
           </button>
         </footer>
       </div>
