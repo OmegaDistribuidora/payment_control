@@ -2,11 +2,14 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { env } from './config/env.js';
 import { HttpError } from './http/http-error.js';
+import { ensureUsersTable } from './auth/users.js';
 import { requireBasicAuth } from './auth/basicAuth.js';
 import { registerAuthRoutes } from './modules/auth/routes.js';
 import { registerReferenceRoutes } from './modules/references/routes.js';
+import { initializeReferencesRuntime } from './modules/references/service.js';
 import { registerPagamentoRoutes } from './modules/pagamentos/routes.js';
 import { registerAuditRoutes } from './audit/routes.js';
+import { ensureAuditTable } from './audit/service.js';
 
 export function createApp() {
   const app = Fastify({
@@ -27,6 +30,9 @@ export function createApp() {
   });
 
   app.addHook('onRequest', requireBasicAuth);
+  app.addHook('onReady', async () => {
+    await Promise.all([ensureUsersTable(), ensureAuditTable(), initializeReferencesRuntime()]);
+  });
   app.addHook('preHandler', async (request, reply) => {
     if (!env.readOnly) return;
     if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') return;

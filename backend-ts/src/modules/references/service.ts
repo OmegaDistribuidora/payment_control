@@ -45,6 +45,8 @@ const CACHE_TTL_MS = 1000 * 60 * 5;
 const DEFAULT_EMPRESAS = ['J2A'];
 let cachedBundle: ReferenceBundle | null = null;
 let cacheAt = 0;
+let ensureReferenceStatusColumnsPromise: Promise<void> | null = null;
+let ensureDefaultEmpresasPromise: Promise<void> | null = null;
 
 async function ensureReferenceStatusColumns(client?: PoolClient): Promise<void> {
   const executor = client ?? pool;
@@ -52,6 +54,16 @@ async function ensureReferenceStatusColumns(client?: PoolClient): Promise<void> 
   await executor.query('alter table if exists ref_despesa add column if not exists ativo boolean not null default true');
   await executor.query('alter table if exists ref_empresa add column if not exists ativo boolean not null default true');
   await executor.query('alter table if exists ref_fornecedor add column if not exists ativo boolean not null default true');
+}
+
+async function ensureReferenceStatusColumnsInitialized(): Promise<void> {
+  if (!ensureReferenceStatusColumnsPromise) {
+    ensureReferenceStatusColumnsPromise = ensureReferenceStatusColumns().catch((error) => {
+      ensureReferenceStatusColumnsPromise = null;
+      throw error;
+    });
+  }
+  await ensureReferenceStatusColumnsPromise;
 }
 
 async function hasSetorDespesasTable(client?: PoolClient): Promise<boolean> {
@@ -68,13 +80,13 @@ async function listSimple(table: 'ref_setor' | 'ref_dspcent' | 'ref_empresa' | '
 }
 
 async function listActiveSimple(table: 'ref_setor' | 'ref_empresa' | 'ref_fornecedor'): Promise<ReferenceItem[]> {
-  await ensureReferenceStatusColumns();
+  await ensureReferenceStatusColumnsInitialized();
   const { rows } = await pool.query<ReferenceItem>(`select codigo, nome from ${table} where ativo = true order by codigo`);
   return rows;
 }
 
 async function listManagedSimple(table: 'ref_setor' | 'ref_empresa' | 'ref_fornecedor'): Promise<ManagedReferenceItem[]> {
-  await ensureReferenceStatusColumns();
+  await ensureReferenceStatusColumnsInitialized();
   const { rows } = await pool.query<ManagedReferenceItem>(`select codigo, nome, ativo from ${table} order by lower(nome)`);
   return rows;
 }
@@ -95,7 +107,7 @@ export async function listDespesas(codMt?: number): Promise<DespesaItem[]> {
   }
 
   if (codMt === undefined || codMt === null) {
-    await ensureReferenceStatusColumns();
+    await ensureReferenceStatusColumnsInitialized();
     const { rows } = await pool.query<DespesaItem>(`
       select d.codigo, d.nome, d.cod_mt as "codMt", c.nome as "dspCent"
       from ref_despesa d
@@ -106,7 +118,7 @@ export async function listDespesas(codMt?: number): Promise<DespesaItem[]> {
     return rows;
   }
 
-  await ensureReferenceStatusColumns();
+  await ensureReferenceStatusColumnsInitialized();
   const { rows } = await pool.query<DespesaItem>(
     `
       select d.codigo, d.nome, d.cod_mt as "codMt", c.nome as "dspCent"
@@ -122,7 +134,7 @@ export async function listDespesas(codMt?: number): Promise<DespesaItem[]> {
 }
 
 export async function listEmpresas(): Promise<ReferenceItem[]> {
-  await ensureDefaultEmpresas();
+  await ensureDefaultEmpresasInitialized();
   const cached = getCachedBundle();
   return cached ? cached.empresas : listActiveSimple('ref_empresa');
 }
@@ -174,16 +186,38 @@ export async function listSetorDespesas(): Promise<Record<string, string[]>> {
 }
 
 export async function listTudo(): Promise<ReferenceBundle> {
+  const [
+    setores,
+    despesas,
+    sedes,
+    dotacoes,
+    empresas,
+    fornecedores,
+    colaboradores,
+    usuarios,
+    setorDespesas,
+  ] = await Promise.all([
+    listSetores(),
+    listDespesas(),
+    listSedes(),
+    listDotacoes(),
+    listEmpresas(),
+    listFornecedores(),
+    listColaboradores(),
+    listManageableUsers(),
+    listSetorDespesas(),
+  ]);
+
   const bundle: ReferenceBundle = {
-    setores: await listSetores(),
-    despesas: await listDespesas(),
-    sedes: await listSedes(),
-    dotacoes: await listDotacoes(),
-    empresas: await listEmpresas(),
-    fornecedores: await listFornecedores(),
-    colaboradores: await listColaboradores(),
-    usuarios: await listManageableUsers(),
-    setorDespesas: await listSetorDespesas(),
+    setores,
+    despesas,
+    sedes,
+    dotacoes,
+    empresas,
+    fornecedores,
+    colaboradores,
+    usuarios,
+    setorDespesas,
   };
   cacheBundle(bundle);
   return bundle;
@@ -251,6 +285,21 @@ export async function ensureDefaultEmpresas(client?: PoolClient): Promise<void> 
   }
 }
 
+async function ensureDefaultEmpresasInitialized(): Promise<void> {
+  if (!ensureDefaultEmpresasPromise) {
+    ensureDefaultEmpresasPromise = ensureDefaultEmpresas().catch((error) => {
+      ensureDefaultEmpresasPromise = null;
+      throw error;
+    });
+  }
+  await ensureDefaultEmpresasPromise;
+}
+
+export async function initializeReferencesRuntime(): Promise<void> {
+  await ensureReferenceStatusColumnsInitialized();
+  await ensureDefaultEmpresasInitialized();
+}
+
 export async function listManagedSetores(): Promise<ManagedReferenceItem[]> {
   return listManagedSimple('ref_setor');
 }
@@ -265,7 +314,7 @@ export async function listManagedFornecedores(): Promise<ManagedReferenceItem[]>
 }
 
 export async function listManagedDespesas(): Promise<ManagedReferenceItem[]> {
-  await ensureReferenceStatusColumns();
+  await ensureReferenceStatusColumnsInitialized();
   const { rows } = await pool.query<ManagedReferenceItem>(
     'select codigo, nome, ativo from ref_despesa order by lower(nome)',
   );

@@ -80,7 +80,7 @@ const USERS: UserRecord[] = [
 const USER_MAP = new Map<string, UserRecord>(USERS.map((item) => [item.username.toLowerCase(), item]));
 let ensureUsersTablePromise: Promise<void> | null = null;
 
-async function ensureUsersTable(): Promise<void> {
+export async function ensureUsersTable(): Promise<void> {
   if (!ensureUsersTablePromise) {
     ensureUsersTablePromise = pool
       .query(`

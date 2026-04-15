@@ -3,7 +3,6 @@ import { pool } from '../../db/pool.js';
 import { canViewReports, isPrivileged, perfilCriador, type AuthUser } from '../../auth/users.js';
 import { normalizeText, parsePagination, toDateOnlyInFortaleza, toLikePattern, toNumeric, trimToNull } from '../../http/utils.js';
 import { badRequest, forbidden, notFound } from '../../http/http-error.js';
-import { ensureDefaultEmpresas } from '../references/service.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const STATUS_LANCADO = 'LANCADO';
@@ -333,10 +332,6 @@ async function validateRateioTargets(client: PoolClient, dotacao: string, empres
   const exigeFornecedor = isFornecedorDotacao(dotacao);
   const permiteAmbos = isEmpresaFornecedorDotacao(dotacao);
   if (!exigeEmpresa && !exigeFornecedor && !permiteAmbos) return;
-
-  if (exigeEmpresa || permiteAmbos) {
-    await ensureDefaultEmpresas(client);
-  }
 
   const checkName = async (nome: string): Promise<void> => {
     const okEmpresa = await existsByNome(client, 'ref_empresa', nome);

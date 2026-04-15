@@ -349,6 +349,64 @@ export function usePagamentosController() {
     setTimeout(() => setError(''), 4000)
   }
 
+  const needsDetailedPagamentoFetch = (pagamento) => {
+    if (!pagamento) return false
+    if (Array.isArray(pagamento.rateios) && pagamento.rateios.length > 0) return false
+    return String(pagamento.empresaFornecedor || '').includes(',')
+  }
+
+  const matchesPagamentoFilters = (pagamento, activeFilters = filters) => {
+    if (!pagamento) return false
+
+    const paymentDate = String(pagamento.dtPagamento || '').slice(0, 10)
+    const de = activeFilters?.de || ''
+    const ate = activeFilters?.ate || ''
+    if (de && paymentDate && paymentDate < de) return false
+    if (ate && paymentDate && paymentDate > ate) return false
+
+    const usuario = String(activeFilters?.usuario || '').trim().toLowerCase()
+    if (usuario && String(pagamento.criadoPor || '').trim().toLowerCase() !== usuario) return false
+
+    const setor = String(activeFilters?.setor || '').trim().toLowerCase()
+    if (setor && String(pagamento.setor || '').trim().toLowerCase() !== setor) return false
+
+    const despesa = String(activeFilters?.despesa || '').trim().toLowerCase()
+    if (despesa && String(pagamento.despesa || '').trim().toLowerCase() !== despesa) return false
+
+    const dotacao = String(activeFilters?.dotacao || '').trim().toLowerCase()
+    if (dotacao && String(pagamento.dotacao || '').trim().toLowerCase() !== dotacao) return false
+
+    const query = String(activeFilters?.q || '').trim().toLowerCase()
+    if (query) {
+      const haystack = `${pagamento.despesa || ''} ${pagamento.descricao || ''}`.toLowerCase()
+      if (!haystack.includes(query)) return false
+    }
+
+    return true
+  }
+
+  const reconcileSpreadsheetPagamento = (pagamento, activeFilters = filters) => {
+    if (!pagamento?.id) return
+    const shouldAppear = matchesPagamentoFilters(pagamento, activeFilters)
+    setSpreadsheetRows((prev) => {
+      const index = prev.findIndex((item) => item.id === pagamento.id)
+      if (!shouldAppear) {
+        return index === -1 ? prev : prev.filter((item) => item.id !== pagamento.id)
+      }
+      if (index === -1) {
+        return [pagamento, ...prev]
+      }
+      const next = [...prev]
+      next[index] = pagamento
+      return next
+    })
+  }
+
+  const removePagamentoFromVisibleState = (pagamentoId) => {
+    setPagamentos((prev) => prev.filter((item) => item.id !== pagamentoId))
+    setSpreadsheetRows((prev) => prev.filter((item) => item.id !== pagamentoId))
+  }
+
   const fetchLoginOptions = async () => {
     try {
       const response = await listarOpcoesLogin()
@@ -1515,6 +1573,15 @@ export function usePagamentosController() {
       setAuthModalOpen(true)
       return
     }
+
+    if (!needsDetailedPagamentoFetch(pagamento)) {
+      setSelectedId(pagamento.id)
+      setModal({ open: true, mode: 'edit' })
+      setForm(mapApiToForm(pagamento))
+      setError('')
+      return
+    }
+
     setLoading(true)
     try {
       setSelectedId(pagamento.id)
@@ -1825,18 +1892,22 @@ export function usePagamentosController() {
 
     setLoading(true)
     try {
+      let savedPagamento = null
       if (modal.mode === 'create') {
         const payload = buildCreatePayload(form)
-        await criarPagamento(auth, payload)
+        savedPagamento = await criarPagamento(auth, payload)
       } else if (selectedPagamento) {
         const payload = buildUpdatePayload(form)
-        await editarPagamento(auth, selectedPagamento.id, payload)
+        savedPagamento = await editarPagamento(auth, selectedPagamento.id, payload)
       }
 
       setModal({ open: false, mode: modal.mode })
       setPageCache({})
       setPrefetchCache({})
-      await refreshVisibleData(pageInfo.number)
+      await fetchPagamentos({ pageNumber: pageInfo.number, skipCache: true })
+      if (viewMode === 'spreadsheet' && savedPagamento) {
+        reconcileSpreadsheetPagamento(savedPagamento)
+      }
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
@@ -1865,9 +1936,14 @@ export function usePagamentosController() {
       await deletarPagamento(auth, pagamento.id)
       setSelectedId(null)
       setModal({ open: false, mode: modal.mode })
+      removePagamentoFromVisibleState(pagamento.id)
       setPageCache({})
       setPrefetchCache({})
-      await refreshVisibleData(0)
+      const nextPage =
+        pageInfo.number > 0 && pagamentos.filter((item) => item.id !== pagamento.id).length === 0
+          ? pageInfo.number - 1
+          : pageInfo.number
+      await fetchPagamentos({ pageNumber: nextPage, skipCache: true })
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
