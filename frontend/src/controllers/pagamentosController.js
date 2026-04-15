@@ -24,6 +24,8 @@ import {
 } from '../services/pagamentosService.js'
 import {
   editarDespesa,
+  editarEmpresaFornecedor,
+  editarQuem,
   editarSetor,
   inativarDespesa,
   inativarEmpresa,
@@ -37,6 +39,11 @@ import {
   listarReferencias,
   listarReferenciasCached,
   listarSetoresGestao,
+  reativarDespesa,
+  reativarEmpresa,
+  reativarFornecedor,
+  reativarQuem,
+  reativarSetor,
   saveCachedReferencias,
   salvarEmpresaFornecedorConfig,
   salvarDespesaConfig,
@@ -152,6 +159,7 @@ function defaultEntityForm() {
     tipo: 'empresa',
     nome: '',
     targetNome: '',
+    novoNome: '',
   }
 }
 
@@ -160,6 +168,7 @@ function defaultQuemForm() {
     mode: 'create',
     nome: '',
     targetNome: '',
+    novoNome: '',
   }
 }
 
@@ -1179,11 +1188,16 @@ export function usePagamentosController() {
   }
 
   const updateEntityForm = (key, value) => {
-    setEntityForm((prev) => ({
-      ...prev,
-      [key]: value,
-      ...(key === 'tipo' ? { targetNome: '' } : {}),
-    }))
+    setEntityForm((prev) => {
+      if (key === 'mode') {
+        return { ...defaultEntityForm(), tipo: prev.tipo, mode: value }
+      }
+      return {
+        ...prev,
+        [key]: value,
+        ...(key === 'tipo' ? { targetNome: '', novoNome: '', nome: '' } : {}),
+      }
+    })
   }
 
   const updateQuemForm = (key, value) => {
@@ -1264,6 +1278,12 @@ export function usePagamentosController() {
           return
         }
         await inativarSetor(auth, { nome: setorForm.targetNome })
+      } else if (setorForm.mode === 'reactivate') {
+        if (!setorForm.targetNome) {
+          showError('Selecione o setor que sera reativado.')
+          return
+        }
+        await reativarSetor(auth, { nome: setorForm.targetNome })
       } else if (setorForm.mode === 'edit') {
         if (!setorForm.targetNome) {
           showError('Selecione o setor que sera editado.')
@@ -1324,6 +1344,12 @@ export function usePagamentosController() {
           return
         }
         await inativarDespesa(auth, { nome: despesaForm.targetNome })
+      } else if (despesaForm.mode === 'reactivate') {
+        if (!despesaForm.targetNome) {
+          showError('Selecione a despesa que sera reativada.')
+          return
+        }
+        await reativarDespesa(auth, { nome: despesaForm.targetNome })
       } else if (despesaForm.mode === 'edit') {
         if (!despesaForm.targetNome) {
           showError('Selecione a despesa que sera editada.')
@@ -1443,6 +1469,30 @@ export function usePagamentosController() {
         } else {
           await inativarFornecedor(auth, { nome: entityForm.targetNome })
         }
+      } else if (entityForm.mode === 'reactivate') {
+        if (!entityForm.targetNome) {
+          showError(`Selecione o ${entityForm.tipo} que sera reativado.`)
+          return
+        }
+        if (entityForm.tipo === 'empresa') {
+          await reativarEmpresa(auth, { nome: entityForm.targetNome })
+        } else {
+          await reativarFornecedor(auth, { nome: entityForm.targetNome })
+        }
+      } else if (entityForm.mode === 'edit') {
+        if (!entityForm.targetNome) {
+          showError(`Selecione o ${entityForm.tipo} que sera editado.`)
+          return
+        }
+        if (!entityForm.novoNome?.trim()) {
+          showError(`Informe o novo nome do ${entityForm.tipo}.`)
+          return
+        }
+        await editarEmpresaFornecedor(auth, {
+          tipo: entityForm.tipo,
+          nomeAtual: entityForm.targetNome,
+          novoNome: entityForm.novoNome.trim(),
+        })
       } else {
         const nome = entityForm.nome?.trim()
         if (!nome) {
@@ -1485,6 +1535,28 @@ export function usePagamentosController() {
         }
         await inativarQuem(auth, { nome: quemForm.targetNome })
         await refreshReferences(auth)
+      } else if (quemForm.mode === 'reactivate') {
+        if (!quemForm.targetNome) {
+          showError('Selecione a opcao de Quem? que sera reativada.')
+          return
+        }
+        await reativarQuem(auth, { nome: quemForm.targetNome })
+        await refreshReferences(auth)
+      } else if (quemForm.mode === 'edit') {
+        if (!quemForm.targetNome) {
+          showError('Selecione a opcao de Quem? que sera editada.')
+          return
+        }
+        if (!quemForm.novoNome?.trim()) {
+          showError('Informe o novo nome da opcao de Quem?.')
+          return
+        }
+        const bundle = await editarQuem(auth, {
+          nomeAtual: quemForm.targetNome,
+          novoNome: quemForm.novoNome.trim(),
+        })
+        applyReferenceBundle(bundle)
+        saveCachedReferencias(bundle)
       } else {
         const nome = quemForm.nome?.trim()
         if (!nome) {

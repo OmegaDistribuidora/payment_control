@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  editarEmpresaFornecedor,
+  editarQuem,
   clearCache,
   editarDespesa,
   editarSetor,
@@ -22,6 +24,11 @@ import {
   inativarFornecedor,
   inativarQuem,
   inativarSetor,
+  reativarDespesa,
+  reativarEmpresa,
+  reativarFornecedor,
+  reativarQuem,
+  reativarSetor,
   listTudo,
   salvarEmpresaFornecedorConfig,
   salvarDespesaConfig,
@@ -101,12 +108,28 @@ export async function registerReferenceRoutes(app: FastifyInstance): Promise<voi
     return salvarEmpresaFornecedorConfig(authUser, request.body);
   });
 
+  app.post('/api/referencias/empresas-fornecedores/editar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    return editarEmpresaFornecedor(authUser, request.body);
+  });
+
   app.post('/api/referencias/quems/config', async (request) => {
     const authUser = request.authUser;
     if (!authUser) {
       badRequest('Usuario autenticado nao encontrado.');
     }
     return salvarQuemConfig(authUser, request.body);
+  });
+
+  app.post('/api/referencias/quems/editar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    return editarQuem(authUser, request.body);
   });
 
   app.post('/api/referencias/setores/inativar', async (request) => {
@@ -152,5 +175,50 @@ export async function registerReferenceRoutes(app: FastifyInstance): Promise<voi
     }
     const body = request.body as { nome?: unknown };
     return inativarQuem(authUser, body.nome);
+  });
+
+  app.post('/api/referencias/setores/reativar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    const body = request.body as { nome?: unknown };
+    return reativarSetor(authUser, body.nome);
+  });
+
+  app.post('/api/referencias/despesas/reativar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    const body = request.body as { nome?: unknown };
+    return reativarDespesa(authUser, body.nome);
+  });
+
+  app.post('/api/referencias/empresas/reativar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    const body = request.body as { nome?: unknown };
+    return reativarEmpresa(authUser, body.nome);
+  });
+
+  app.post('/api/referencias/fornecedores/reativar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    const body = request.body as { nome?: unknown };
+    return reativarFornecedor(authUser, body.nome);
+  });
+
+  app.post('/api/referencias/quems/reativar', async (request) => {
+    const authUser = request.authUser;
+    if (!authUser) {
+      badRequest('Usuario autenticado nao encontrado.');
+    }
+    const body = request.body as { nome?: unknown };
+    return reativarQuem(authUser, body.nome);
   });
 }

@@ -24,12 +24,20 @@ export function editarDespesa(auth, payload) {
   return apiRequest('/api/referencias/despesas/editar', { method: 'POST', auth, body: payload })
 }
 
+export function editarEmpresaFornecedor(auth, payload) {
+  return apiRequest('/api/referencias/empresas-fornecedores/editar', { method: 'POST', auth, body: payload })
+}
+
 export function salvarEmpresaFornecedorConfig(auth, payload) {
   return apiRequest('/api/referencias/empresas-fornecedores/config', { method: 'POST', auth, body: payload })
 }
 
 export function salvarQuemConfig(auth, payload) {
   return apiRequest('/api/referencias/quems/config', { method: 'POST', auth, body: payload })
+}
+
+export function editarQuem(auth, payload) {
+  return apiRequest('/api/referencias/quems/editar', { method: 'POST', auth, body: payload })
 }
 
 export function listarSetoresGestao(auth) {
@@ -72,7 +80,27 @@ export function inativarQuem(auth, payload) {
   return apiRequest('/api/referencias/quems/inativar', { method: 'POST', auth, body: payload })
 }
 
-const CACHE_KEY = 'payment_control.referencias.v4'
+export function reativarSetor(auth, payload) {
+  return apiRequest('/api/referencias/setores/reativar', { method: 'POST', auth, body: payload })
+}
+
+export function reativarDespesa(auth, payload) {
+  return apiRequest('/api/referencias/despesas/reativar', { method: 'POST', auth, body: payload })
+}
+
+export function reativarEmpresa(auth, payload) {
+  return apiRequest('/api/referencias/empresas/reativar', { method: 'POST', auth, body: payload })
+}
+
+export function reativarFornecedor(auth, payload) {
+  return apiRequest('/api/referencias/fornecedores/reativar', { method: 'POST', auth, body: payload })
+}
+
+export function reativarQuem(auth, payload) {
+  return apiRequest('/api/referencias/quems/reativar', { method: 'POST', auth, body: payload })
+}
+
+const CACHE_KEY = 'payment_control.referencias.v5'
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6
 
 function hasReferenceData(data) {

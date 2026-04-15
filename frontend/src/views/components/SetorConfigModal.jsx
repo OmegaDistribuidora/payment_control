@@ -53,6 +53,7 @@ function SetorConfigModal({
               <option value="create">Criar novo</option>
               <option value="edit">Editar nome</option>
               <option value="inactivate">Inativar</option>
+              <option value="reactivate">Reativar</option>
             </select>
           </div>
 
@@ -70,6 +71,25 @@ function SetorConfigModal({
                   .filter((item) => item.ativo)
                   .map((item) => (
                     <option key={`setor-manage-${item.codigo}`} value={item.nome}>
+                      {item.nome}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          ) : form?.mode === 'reactivate' ? (
+            <div className="modal-field">
+              <label className="modal-label">Setor</label>
+              <select
+                className="modal-input"
+                value={form?.targetNome || ''}
+                onChange={(event) => onChange('targetNome', event.target.value)}
+                disabled={loading}
+              >
+                <option value="">Selecione...</option>
+                {managedItems
+                  .filter((item) => !item.ativo)
+                  .map((item) => (
+                    <option key={`setor-reactivate-${item.codigo}`} value={item.nome}>
                       {item.nome}
                     </option>
                   ))}
@@ -180,7 +200,7 @@ function SetorConfigModal({
             Cancelar
           </button>
           <button className="modal-action primary" type="button" onClick={onSave} disabled={loading}>
-            {loading ? 'Salvando...' : form?.mode === 'inactivate' ? 'Inativar setor' : form?.mode === 'edit' ? 'Salvar alteracoes' : 'Salvar setor'}
+            {loading ? 'Salvando...' : form?.mode === 'inactivate' ? 'Inativar setor' : form?.mode === 'reactivate' ? 'Reativar setor' : form?.mode === 'edit' ? 'Salvar alteracoes' : 'Salvar setor'}
           </button>
         </footer>
       </div>

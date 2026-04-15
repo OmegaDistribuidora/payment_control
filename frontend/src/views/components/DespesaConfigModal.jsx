@@ -32,6 +32,7 @@ function DespesaConfigModal({
               <option value="create">Criar novo</option>
               <option value="edit">Editar nome</option>
               {allowInactivate ? <option value="inactivate">Inativar</option> : null}
+              {allowInactivate ? <option value="reactivate">Reativar</option> : null}
             </select>
           </div>
 
@@ -44,6 +45,20 @@ function DespesaConfigModal({
                   .filter((item) => item.ativo)
                   .map((item) => (
                     <option key={`despesa-manage-${item.codigo}`} value={item.nome}>
+                      {item.nome}
+                    </option>
+                ))}
+              </select>
+            </div>
+          ) : allowInactivate && form?.mode === 'reactivate' ? (
+            <div className="modal-field">
+              <label className="modal-label">Despesa</label>
+              <select className="modal-input" value={form?.targetNome || ''} onChange={(event) => onChange('targetNome', event.target.value)} disabled={loading}>
+                <option value="">Selecione...</option>
+                {managedItems
+                  .filter((item) => !item.ativo)
+                  .map((item) => (
+                    <option key={`despesa-reactivate-${item.codigo}`} value={item.nome}>
                       {item.nome}
                     </option>
                 ))}
@@ -113,7 +128,7 @@ function DespesaConfigModal({
             Cancelar
           </button>
           <button className="modal-action primary" type="button" onClick={onSave} disabled={loading}>
-            {loading ? 'Salvando...' : allowInactivate && form?.mode === 'inactivate' ? 'Inativar despesa' : form?.mode === 'edit' ? 'Salvar alteracoes' : 'Salvar despesa'}
+            {loading ? 'Salvando...' : allowInactivate && form?.mode === 'inactivate' ? 'Inativar despesa' : allowInactivate && form?.mode === 'reactivate' ? 'Reativar despesa' : form?.mode === 'edit' ? 'Salvar alteracoes' : 'Salvar despesa'}
           </button>
         </footer>
       </div>

@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import { pool } from '../../db/pool.js';
 import { badRequest, forbidden } from '../../http/http-error.js';
-import { canManageDespesas, canManageSetores, listManageableUsers, type AuthUser } from '../../auth/users.js';
+import { canManageDespesas, canManageEntities, canManageSetores, listManageableUsers, type AuthUser } from '../../auth/users.js';
 import { trimToNull } from '../../http/utils.js';
 import { logAudit } from '../../audit/service.js';
 
@@ -458,7 +458,15 @@ async function inactivateReference(
   entityType: 'setor' | 'despesa' | 'empresa' | 'fornecedor' | 'quem',
   nomeRaw: unknown,
 ): Promise<{ nome: string; ativo: false }> {
-  if (!canManageSetores(authUser)) {
+  if (entityType === 'despesa') {
+    if (!canManageDespesas(authUser)) {
+      forbidden('Acao permitida somente para usuarios com acesso a despesa.');
+    }
+  } else if (entityType === 'empresa' || entityType === 'fornecedor') {
+    if (!canManageEntities(authUser)) {
+      forbidden('Acao permitida somente para usuarios com acesso a empresas e fornecedores.');
+    }
+  } else if (!canManageSetores(authUser)) {
     forbidden('Acao permitida somente para admin.');
   }
 
@@ -497,6 +505,59 @@ async function inactivateReference(
   return { nome, ativo: false };
 }
 
+async function reactivateReference(
+  authUser: AuthUser,
+  table: 'ref_setor' | 'ref_despesa' | 'ref_empresa' | 'ref_fornecedor' | 'ref_quem',
+  entityType: 'setor' | 'despesa' | 'empresa' | 'fornecedor' | 'quem',
+  nomeRaw: unknown,
+): Promise<{ nome: string; ativo: true }> {
+  if (entityType === 'despesa') {
+    if (!canManageDespesas(authUser)) {
+      forbidden('Acao permitida somente para usuarios com acesso a despesa.');
+    }
+  } else if (entityType === 'empresa' || entityType === 'fornecedor') {
+    if (!canManageEntities(authUser)) {
+      forbidden('Acao permitida somente para usuarios com acesso a empresas e fornecedores.');
+    }
+  } else if (!canManageSetores(authUser)) {
+    forbidden('Acao permitida somente para admin.');
+  }
+
+  const nome = trimToNull(nomeRaw);
+  if (!nome) {
+    badRequest('Nome obrigatorio.');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await ensureReferenceStatusColumns(client);
+    const codigo = await findCodigoByNome(client, table, nome);
+    if (!codigo) {
+      badRequest('Registro nao encontrado.');
+    }
+    await client.query(`update ${table} set ativo = true where codigo = $1`, [codigo]);
+    await logAudit(client, {
+      entityType,
+      entityId: nome,
+      action: 'REATIVADO',
+      actor: authUser.username,
+      details: {
+        descricao: `${entityType.charAt(0).toUpperCase() + entityType.slice(1)} ${nome} reativado por ${authUser.username}`,
+      },
+    });
+    await client.query('commit');
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  clearCache();
+  return { nome, ativo: true };
+}
+
 export async function inativarSetor(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: false }> {
   return inactivateReference(authUser, 'ref_setor', 'setor', nome);
 }
@@ -518,22 +579,48 @@ export async function inativarQuem(authUser: AuthUser, nome: unknown): Promise<{
   return inactivateReference(authUser, 'ref_quem', 'quem', nome);
 }
 
+export async function reativarSetor(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: true }> {
+  return reactivateReference(authUser, 'ref_setor', 'setor', nome);
+}
+
+export async function reativarDespesa(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: true }> {
+  return reactivateReference(authUser, 'ref_despesa', 'despesa', nome);
+}
+
+export async function reativarEmpresa(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: true }> {
+  return reactivateReference(authUser, 'ref_empresa', 'empresa', nome);
+}
+
+export async function reativarFornecedor(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: true }> {
+  return reactivateReference(authUser, 'ref_fornecedor', 'fornecedor', nome);
+}
+
+export async function reativarQuem(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: true }> {
+  await ensureQuemTableInitialized();
+  return reactivateReference(authUser, 'ref_quem', 'quem', nome);
+}
+
 async function updateReferenceName(
   authUser: AuthUser,
   options: {
-    table: 'ref_setor' | 'ref_despesa';
-    entityType: 'setor' | 'despesa';
+    table: 'ref_setor' | 'ref_despesa' | 'ref_empresa' | 'ref_fornecedor' | 'ref_quem';
+    entityType: 'setor' | 'despesa' | 'empresa' | 'fornecedor' | 'quem';
     oldNameRaw: unknown;
     newNameRaw: unknown;
   },
 ): Promise<ReferenceBundle> {
   const isSetor = options.entityType === 'setor';
-  if (isSetor) {
+  const isDespesa = options.entityType === 'despesa';
+  const isEntity = options.entityType === 'empresa' || options.entityType === 'fornecedor';
+  const isQuem = options.entityType === 'quem';
+  if (isSetor || isQuem) {
     if (!canManageSetores(authUser)) {
-      forbidden('Acao permitida somente para usuarios com acesso a setor.');
+      forbidden(`Acao permitida somente para usuarios com acesso a ${options.entityType}.`);
     }
-  } else if (!canManageDespesas(authUser)) {
+  } else if (isDespesa && !canManageDespesas(authUser)) {
     forbidden('Acao permitida somente para usuarios com acesso a despesa.');
+  } else if (isEntity && !canManageEntities(authUser)) {
+    forbidden('Acao permitida somente para usuarios com acesso a empresas e fornecedores.');
   }
 
   const oldName = trimToNull(options.oldNameRaw);
@@ -553,11 +640,11 @@ async function updateReferenceName(
     await client.query('begin');
     const codigo = await findCodigoByNome(client, options.table, oldName);
     if (!codigo) {
-      badRequest(`${options.entityType === 'setor' ? 'Setor' : 'Despesa'} nao encontrado.`);
+      badRequest(`${options.entityType.charAt(0).toUpperCase() + options.entityType.slice(1)} nao encontrado.`);
     }
     const existingTarget = await findCodigoByNome(client, options.table, newName);
     if (existingTarget) {
-      badRequest(`${options.entityType === 'setor' ? 'Setor' : 'Despesa'} com esse nome ja existe.`);
+      badRequest(`${options.entityType.charAt(0).toUpperCase() + options.entityType.slice(1)} com esse nome ja existe.`);
     }
 
     await client.query(`update ${options.table} set nome = $1 where codigo = $2`, [newName, codigo]);
@@ -581,7 +668,7 @@ async function updateReferenceName(
         `,
         [newName, oldName],
       );
-    } else {
+    } else if (isDespesa) {
       await client.query(
         `
           update pagamentos
@@ -592,6 +679,51 @@ async function updateReferenceName(
         `,
         [newName, oldName],
       );
+    } else if (isQuem) {
+      await client.query(
+        `
+          update pagamentos
+          set setor_pagamento = $1
+          where lower(setor_pagamento) = lower($2)
+        `,
+        [newName, oldName],
+      );
+    } else if (isEntity) {
+      await client.query(
+        `
+          update pagamento_rateio
+          set nome = $1
+          where lower(nome) = lower($2)
+        `,
+        [newName, oldName],
+      );
+      await client.query(
+        `
+          update pagamentos
+          set empresa_fornecedor = $1
+          where lower(empresa_fornecedor) = lower($2)
+        `,
+        [newName, oldName],
+      );
+      await client.query(
+        `
+          update pagamentos p
+          set empresa_fornecedor = agg.nomes
+          from (
+            select pagamento_id, string_agg(nome, ', ' order by lower(nome), nome) as nomes
+            from pagamento_rateio
+            group by pagamento_id
+          ) agg
+          where p.id = agg.pagamento_id
+            and exists (
+              select 1
+              from pagamento_rateio pr
+              where pr.pagamento_id = p.id
+                and lower(pr.nome) = lower($1)
+            )
+        `,
+        [newName],
+      );
     }
 
     await logAudit(client, {
@@ -600,7 +732,7 @@ async function updateReferenceName(
       action: 'ATUALIZADO',
       actor: authUser.username,
       details: {
-        descricao: `${options.entityType === 'setor' ? 'Setor' : 'Despesa'} ${oldName} renomeado para ${newName} por ${authUser.username}`,
+        descricao: `${options.entityType.charAt(0).toUpperCase() + options.entityType.slice(1)} ${oldName} renomeado para ${newName} por ${authUser.username}`,
         changes: {
           nome: { de: oldName, para: newName },
         },
@@ -634,6 +766,31 @@ export async function editarDespesa(authUser: AuthUser, payload: unknown): Promi
   return updateReferenceName(authUser, {
     table: 'ref_despesa',
     entityType: 'despesa',
+    oldNameRaw: body.nomeAtual,
+    newNameRaw: body.novoNome,
+  });
+}
+
+export async function editarEmpresaFornecedor(authUser: AuthUser, payload: unknown): Promise<ReferenceBundle> {
+  const body = (payload ?? {}) as { tipo?: unknown; nomeAtual?: unknown; novoNome?: unknown };
+  const tipo = trimToNull(body.tipo)?.toLowerCase();
+  if (tipo !== 'empresa' && tipo !== 'fornecedor') {
+    badRequest('Tipo invalido.');
+  }
+  return updateReferenceName(authUser, {
+    table: tipo === 'empresa' ? 'ref_empresa' : 'ref_fornecedor',
+    entityType: tipo,
+    oldNameRaw: body.nomeAtual,
+    newNameRaw: body.novoNome,
+  });
+}
+
+export async function editarQuem(authUser: AuthUser, payload: unknown): Promise<ReferenceBundle> {
+  await ensureQuemTableInitialized();
+  const body = (payload ?? {}) as { nomeAtual?: unknown; novoNome?: unknown };
+  return updateReferenceName(authUser, {
+    table: 'ref_quem',
+    entityType: 'quem',
     oldNameRaw: body.nomeAtual,
     newNameRaw: body.novoNome,
   });
