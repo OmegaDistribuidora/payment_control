@@ -334,7 +334,7 @@ async function ensureDefaultQuem(client?: PoolClient): Promise<void> {
         select trim(setor_pagamento) as nome from pagamentos
       ) src
       where nome is not null and nome <> ''
-      order by lower(nome)
+      order by nome
     `);
 
     for (const row of rows) {
@@ -839,3 +839,4 @@ export async function salvarQuemConfig(authUser: AuthUser, payload: unknown): Pr
   clearCache();
   return listTudo();
 }
+
