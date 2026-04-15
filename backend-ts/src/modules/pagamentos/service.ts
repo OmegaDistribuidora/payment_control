@@ -678,7 +678,7 @@ export async function listarMeus(
     from pagamentos p
   `;
   const countSql = `select count(*)::bigint as total from pagamentos p ${where.sql}`;
-  const contentSql = `${baseSelect} ${where.sql} order by p.id desc limit $${where.params.length + 1} offset $${where.params.length + 2}`;
+  const contentSql = `${baseSelect} ${where.sql} order by p.dt_sistema desc, p.id desc limit $${where.params.length + 1} offset $${where.params.length + 2}`;
 
   const [countResult, contentResult, colaboradorMap] = await Promise.all([
     pool.query<{ total: string }>(countSql, where.params),

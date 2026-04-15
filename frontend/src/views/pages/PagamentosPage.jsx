@@ -289,6 +289,10 @@ function PagamentosPage() {
         <SpreadsheetTable
           rows={controller.spreadsheetRows}
           loading={controller.spreadsheetLoading || controller.loading}
+          visibleCount={controller.spreadsheetRows.length}
+          totalCount={controller.spreadsheetInfo.totalElements}
+          canLoadMore={controller.canLoadMoreSpreadsheetRows}
+          onLoadMore={controller.loadMoreSpreadsheetRows}
           onEdit={handleEditRow}
           onDelete={handleDeleteRow}
         />

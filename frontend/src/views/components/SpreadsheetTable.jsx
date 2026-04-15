@@ -22,7 +22,16 @@ function TrashIcon() {
   )
 }
 
-function SpreadsheetTable({ rows, loading, onEdit, onDelete }) {
+function SpreadsheetTable({
+  rows,
+  loading,
+  onEdit,
+  onDelete,
+  visibleCount = 0,
+  totalCount = 0,
+  canLoadMore = false,
+  onLoadMore,
+}) {
   const hasRows = Array.isArray(rows) && rows.length > 0
 
   return (
@@ -87,6 +96,23 @@ function SpreadsheetTable({ rows, loading, onEdit, onDelete }) {
       ) : (
         <div className="empty-state">Nenhum lancamento para exibir na planilha.</div>
       )}
+      {hasRows ? (
+        <div className="sheet-footer">
+          <div>
+            Mostrando {visibleCount || rows.length} de {totalCount || rows.length} lancamentos
+          </div>
+          {canLoadMore ? (
+            <button
+              className="modal-action ghost"
+              type="button"
+              onClick={onLoadMore}
+              disabled={loading}
+            >
+              Mostrar mais 50
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   )
 }

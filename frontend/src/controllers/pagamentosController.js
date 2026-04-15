@@ -56,6 +56,8 @@ import {
   printPaymentsDocument,
 } from '../utils/paymentExport.js'
 
+const SPREADSHEET_PAGE_SIZE = 50
+
 const USER_PERMISSION_FIELDS = [
   'canViewReports',
   'canViewHistory',
@@ -298,6 +300,11 @@ export function usePagamentosController() {
   const [viewMode, setViewMode] = useState('cards')
   const [spreadsheetRows, setSpreadsheetRows] = useState([])
   const [spreadsheetLoading, setSpreadsheetLoading] = useState(false)
+  const [spreadsheetInfo, setSpreadsheetInfo] = useState({
+    loadedPages: 0,
+    totalPages: 0,
+    totalElements: 0,
+  })
   const [selectedId, setSelectedId] = useState(null)
   const [modal, setModal] = useState({ open: false, mode: 'create' })
   const [setorModalOpen, setSetorModalOpen] = useState(false)
@@ -353,53 +360,6 @@ export function usePagamentosController() {
     if (!pagamento) return false
     if (Array.isArray(pagamento.rateios) && pagamento.rateios.length > 0) return false
     return String(pagamento.empresaFornecedor || '').includes(',')
-  }
-
-  const matchesPagamentoFilters = (pagamento, activeFilters = filters) => {
-    if (!pagamento) return false
-
-    const paymentDate = String(pagamento.dtPagamento || '').slice(0, 10)
-    const de = activeFilters?.de || ''
-    const ate = activeFilters?.ate || ''
-    if (de && paymentDate && paymentDate < de) return false
-    if (ate && paymentDate && paymentDate > ate) return false
-
-    const usuario = String(activeFilters?.usuario || '').trim().toLowerCase()
-    if (usuario && String(pagamento.criadoPor || '').trim().toLowerCase() !== usuario) return false
-
-    const setor = String(activeFilters?.setor || '').trim().toLowerCase()
-    if (setor && String(pagamento.setor || '').trim().toLowerCase() !== setor) return false
-
-    const despesa = String(activeFilters?.despesa || '').trim().toLowerCase()
-    if (despesa && String(pagamento.despesa || '').trim().toLowerCase() !== despesa) return false
-
-    const dotacao = String(activeFilters?.dotacao || '').trim().toLowerCase()
-    if (dotacao && String(pagamento.dotacao || '').trim().toLowerCase() !== dotacao) return false
-
-    const query = String(activeFilters?.q || '').trim().toLowerCase()
-    if (query) {
-      const haystack = `${pagamento.despesa || ''} ${pagamento.descricao || ''}`.toLowerCase()
-      if (!haystack.includes(query)) return false
-    }
-
-    return true
-  }
-
-  const reconcileSpreadsheetPagamento = (pagamento, activeFilters = filters) => {
-    if (!pagamento?.id) return
-    const shouldAppear = matchesPagamentoFilters(pagamento, activeFilters)
-    setSpreadsheetRows((prev) => {
-      const index = prev.findIndex((item) => item.id === pagamento.id)
-      if (!shouldAppear) {
-        return index === -1 ? prev : prev.filter((item) => item.id !== pagamento.id)
-      }
-      if (index === -1) {
-        return [pagamento, ...prev]
-      }
-      const next = [...prev]
-      next[index] = pagamento
-      return next
-    })
   }
 
   const removePagamentoFromVisibleState = (pagamentoId) => {
@@ -648,7 +608,7 @@ export function usePagamentosController() {
     }
   }
 
-  const fetchSpreadsheetRows = async ({ authOverride, filtersOverride } = {}) => {
+  const fetchSpreadsheetRows = async ({ authOverride, filtersOverride, append = false } = {}) => {
     const authData = authOverride || auth
     if (!authData) {
       setAuthModalOpen(true)
@@ -656,24 +616,20 @@ export function usePagamentosController() {
     }
 
     const activeFilters = filtersOverride || filters
+    const targetPage = append ? spreadsheetInfo.loadedPages : 0
     setSpreadsheetLoading(true)
     try {
-      const firstPage = await listarPagamentos(authData, activeFilters, {
-        number: 0,
-        size: 200,
+      const pageData = await listarPagamentos(authData, activeFilters, {
+        number: targetPage,
+        size: SPREADSHEET_PAGE_SIZE,
       })
-      const totalPages = firstPage?.totalPages ?? 0
-      const allRows = [...(firstPage?.content || [])]
-
-      for (let page = 1; page < totalPages; page += 1) {
-        const pageData = await listarPagamentos(authData, activeFilters, {
-          number: page,
-          size: 200,
-        })
-        allRows.push(...(pageData?.content || []))
-      }
-
-      setSpreadsheetRows(allRows)
+      const nextRows = pageData?.content || []
+      setSpreadsheetRows((prev) => (append ? [...prev, ...nextRows] : nextRows))
+      setSpreadsheetInfo({
+        loadedPages: append ? targetPage + 1 : 1,
+        totalPages: pageData?.totalPages ?? 0,
+        totalElements: pageData?.totalElements ?? 0,
+      })
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
@@ -826,6 +782,7 @@ export function usePagamentosController() {
     setPageCache({})
     setPrefetchCache({})
     setSpreadsheetRows([])
+    setSpreadsheetInfo({ loadedPages: 0, totalPages: 0, totalElements: 0 })
     setViewMode('cards')
     setCurrentPage('payments')
     setReportsData(defaultReportsViewState())
@@ -1892,21 +1849,20 @@ export function usePagamentosController() {
 
     setLoading(true)
     try {
-      let savedPagamento = null
       if (modal.mode === 'create') {
         const payload = buildCreatePayload(form)
-        savedPagamento = await criarPagamento(auth, payload)
+        await criarPagamento(auth, payload)
       } else if (selectedPagamento) {
         const payload = buildUpdatePayload(form)
-        savedPagamento = await editarPagamento(auth, selectedPagamento.id, payload)
+        await editarPagamento(auth, selectedPagamento.id, payload)
       }
 
       setModal({ open: false, mode: modal.mode })
       setPageCache({})
       setPrefetchCache({})
       await fetchPagamentos({ pageNumber: pageInfo.number, skipCache: true })
-      if (viewMode === 'spreadsheet' && savedPagamento) {
-        reconcileSpreadsheetPagamento(savedPagamento)
+      if (viewMode === 'spreadsheet') {
+        await fetchSpreadsheetRows()
       }
     } catch (err) {
       if (err.status === 401) {
@@ -1944,6 +1900,9 @@ export function usePagamentosController() {
           ? pageInfo.number - 1
           : pageInfo.number
       await fetchPagamentos({ pageNumber: nextPage, skipCache: true })
+      if (viewMode === 'spreadsheet') {
+        await fetchSpreadsheetRows()
+      }
     } catch (err) {
       if (err.status === 401) {
         setAuthModalOpen(true)
@@ -2001,6 +1960,15 @@ export function usePagamentosController() {
     await fetchPagamentos({ pageNumber: prevPage })
   }
 
+  const loadMoreSpreadsheetRows = async () => {
+    if (spreadsheetLoading) return
+    if (spreadsheetInfo.loadedPages >= spreadsheetInfo.totalPages) return
+    await fetchSpreadsheetRows({ append: true })
+  }
+
+  const canLoadMoreSpreadsheetRows =
+    spreadsheetInfo.loadedPages > 0 && spreadsheetInfo.loadedPages < spreadsheetInfo.totalPages
+
   return {
     auth,
     currentPage,
@@ -2023,6 +1991,8 @@ export function usePagamentosController() {
     viewMode,
     spreadsheetRows,
     spreadsheetLoading,
+    spreadsheetInfo,
+    canLoadMoreSpreadsheetRows,
     modal,
     setorModalOpen,
     setorForm,
@@ -2070,6 +2040,7 @@ export function usePagamentosController() {
     handleAuthClear,
     fetchPagamentos,
     fetchSpreadsheetRows,
+    loadMoreSpreadsheetRows,
     fetchReferencias,
     applyFilters,
     clearFilters,
