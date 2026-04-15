@@ -173,6 +173,7 @@ function translateEntity(entityType: string): string {
     pagamento: 'Lancamento',
     usuario: 'Usuario',
     setor: 'Setor',
+    quem: 'Quem',
     despesa: 'Despesa',
     sistema: 'Sistema',
   };

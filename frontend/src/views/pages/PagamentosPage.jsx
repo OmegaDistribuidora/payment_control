@@ -13,6 +13,7 @@ import DespesaConfigModal from '../components/DespesaConfigModal.jsx'
 import UserConfigModal from '../components/UserConfigModal.jsx'
 import ChangePasswordModal from '../components/ChangePasswordModal.jsx'
 import EntityConfigModal from '../components/EntityConfigModal.jsx'
+import QuemConfigModal from '../components/QuemConfigModal.jsx'
 import ExportModal from '../components/ExportModal.jsx'
 import ReportsPage from './ReportsPage.jsx'
 import { formatCurrency, formatDate, formatDateTime, formatMonth } from '../../models/pagamentoModel.js'
@@ -180,6 +181,7 @@ function PagamentosPage() {
         onConfigDespesa={controller.openDespesaModal}
         onConfigUser={controller.openUserModal}
         onConfigEntity={controller.openEntityModal}
+        onConfigQuem={controller.openQuemModal}
         onOpenExport={controller.openExportModal}
         onChangePassword={controller.openPasswordModal}
         onOpenReports={controller.openReportsPage}
@@ -191,6 +193,7 @@ function PagamentosPage() {
         showDespesaButton={controller.canCreateDespesa}
         showUserButton={controller.canCreateUser}
         showEntityButton={controller.canManageEntities}
+        showQuemButton={controller.canManageQuem}
         showExportButton={controller.isAdmin}
         showReportsButton={controller.canViewReports}
         showHistoryButton={controller.canViewHistory}
@@ -372,6 +375,16 @@ function PagamentosPage() {
         onChange={controller.updateEntityForm}
         onSave={controller.saveEntity}
         onClose={controller.closeEntityModal}
+      />
+      <QuemConfigModal
+        isOpen={controller.quemModalOpen}
+        form={controller.quemForm}
+        managedItems={controller.managedQuems}
+        loading={controller.loading}
+        error={controller.error}
+        onChange={controller.updateQuemForm}
+        onSave={controller.saveQuem}
+        onClose={controller.closeQuemModal}
       />
       <ExportModal
         isOpen={controller.exportModalOpen}

@@ -322,8 +322,8 @@ async function validateReferences(client: PoolClient, payload: PagamentoPayload)
   if (!(await existsByNome(client, 'ref_dotacao', payload.dotacao))) {
     badRequest('Dotacao invalida.');
   }
-  if (!(await existsByNome(client, 'ref_setor', payload.setorPagamento))) {
-    badRequest('Setor (Quem?) invalido.');
+  if (!(await existsByNome(client, 'ref_quem', payload.setorPagamento))) {
+    badRequest('Campo Quem? invalido.');
   }
 }
 

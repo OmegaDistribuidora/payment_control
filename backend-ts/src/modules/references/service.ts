@@ -31,6 +31,7 @@ export type ManagedReferenceItem = {
 
 export type ReferenceBundle = {
   setores: ReferenceItem[];
+  quems: ReferenceItem[];
   despesas: DespesaItem[];
   sedes: ReferenceItem[];
   dotacoes: ReferenceItem[];
@@ -47,6 +48,7 @@ let cachedBundle: ReferenceBundle | null = null;
 let cacheAt = 0;
 let ensureReferenceStatusColumnsPromise: Promise<void> | null = null;
 let ensureDefaultEmpresasPromise: Promise<void> | null = null;
+let ensureQuemTablePromise: Promise<void> | null = null;
 
 async function ensureReferenceStatusColumns(client?: PoolClient): Promise<void> {
   const executor = client ?? pool;
@@ -54,6 +56,7 @@ async function ensureReferenceStatusColumns(client?: PoolClient): Promise<void> 
   await executor.query('alter table if exists ref_despesa add column if not exists ativo boolean not null default true');
   await executor.query('alter table if exists ref_empresa add column if not exists ativo boolean not null default true');
   await executor.query('alter table if exists ref_fornecedor add column if not exists ativo boolean not null default true');
+  await executor.query('alter table if exists ref_quem add column if not exists ativo boolean not null default true');
 }
 
 async function ensureReferenceStatusColumnsInitialized(): Promise<void> {
@@ -74,18 +77,40 @@ async function hasSetorDespesasTable(client?: PoolClient): Promise<boolean> {
   return Boolean(rows[0]?.exists);
 }
 
-async function listSimple(table: 'ref_setor' | 'ref_dspcent' | 'ref_empresa' | 'ref_fornecedor' | 'ref_sede' | 'ref_dotacao'): Promise<ReferenceItem[]> {
+async function ensureQuemTable(client?: PoolClient): Promise<void> {
+  const executor = client ?? pool;
+  await executor.query(`
+    create table if not exists ref_quem (
+      codigo integer primary key,
+      nome varchar(80) not null unique,
+      ativo boolean not null default true
+    )
+  `);
+  await executor.query('alter table if exists ref_quem add column if not exists ativo boolean not null default true');
+}
+
+async function ensureQuemTableInitialized(): Promise<void> {
+  if (!ensureQuemTablePromise) {
+    ensureQuemTablePromise = ensureQuemTable().catch((error) => {
+      ensureQuemTablePromise = null;
+      throw error;
+    });
+  }
+  await ensureQuemTablePromise;
+}
+
+async function listSimple(table: 'ref_setor' | 'ref_dspcent' | 'ref_empresa' | 'ref_fornecedor' | 'ref_sede' | 'ref_dotacao' | 'ref_quem'): Promise<ReferenceItem[]> {
   const { rows } = await pool.query<ReferenceItem>(`select codigo, nome from ${table} order by codigo`);
   return rows;
 }
 
-async function listActiveSimple(table: 'ref_setor' | 'ref_empresa' | 'ref_fornecedor'): Promise<ReferenceItem[]> {
+async function listActiveSimple(table: 'ref_setor' | 'ref_empresa' | 'ref_fornecedor' | 'ref_quem'): Promise<ReferenceItem[]> {
   await ensureReferenceStatusColumnsInitialized();
   const { rows } = await pool.query<ReferenceItem>(`select codigo, nome from ${table} where ativo = true order by codigo`);
   return rows;
 }
 
-async function listManagedSimple(table: 'ref_setor' | 'ref_empresa' | 'ref_fornecedor'): Promise<ManagedReferenceItem[]> {
+async function listManagedSimple(table: 'ref_setor' | 'ref_empresa' | 'ref_fornecedor' | 'ref_quem'): Promise<ManagedReferenceItem[]> {
   await ensureReferenceStatusColumnsInitialized();
   const { rows } = await pool.query<ManagedReferenceItem>(`select codigo, nome, ativo from ${table} order by lower(nome)`);
   return rows;
@@ -94,6 +119,12 @@ async function listManagedSimple(table: 'ref_setor' | 'ref_empresa' | 'ref_forne
 export async function listSetores(): Promise<ReferenceItem[]> {
   const cached = getCachedBundle();
   return cached ? cached.setores : listActiveSimple('ref_setor');
+}
+
+export async function listQuem(): Promise<ReferenceItem[]> {
+  await ensureQuemTableInitialized();
+  const cached = getCachedBundle();
+  return cached ? cached.quems : listActiveSimple('ref_quem');
 }
 
 export async function listDspCentros(): Promise<ReferenceItem[]> {
@@ -188,6 +219,7 @@ export async function listSetorDespesas(): Promise<Record<string, string[]>> {
 export async function listTudo(): Promise<ReferenceBundle> {
   const [
     setores,
+    quems,
     despesas,
     sedes,
     dotacoes,
@@ -198,6 +230,7 @@ export async function listTudo(): Promise<ReferenceBundle> {
     setorDespesas,
   ] = await Promise.all([
     listSetores(),
+    listQuem(),
     listDespesas(),
     listSedes(),
     listDotacoes(),
@@ -210,6 +243,7 @@ export async function listTudo(): Promise<ReferenceBundle> {
 
   const bundle: ReferenceBundle = {
     setores,
+    quems,
     despesas,
     sedes,
     dotacoes,
@@ -285,6 +319,43 @@ export async function ensureDefaultEmpresas(client?: PoolClient): Promise<void> 
   }
 }
 
+async function ensureDefaultQuem(client?: PoolClient): Promise<void> {
+  const ownsClient = !client;
+  const executor = client ?? (await pool.connect());
+  let inserted = false;
+
+  try {
+    await ensureQuemTable(executor);
+    const { rows } = await executor.query<{ nome: string }>(`
+      select distinct nome
+      from (
+        select trim(nome) as nome from ref_setor
+        union
+        select trim(setor_pagamento) as nome from pagamentos
+      ) src
+      where nome is not null and nome <> ''
+      order by lower(nome)
+    `);
+
+    for (const row of rows) {
+      const nome = trimToNull(row.nome);
+      if (!nome) continue;
+      const existente = await findCodigoByNome(executor, 'ref_quem', nome);
+      if (existente) continue;
+      const codigo = await nextCodigo(executor, 'ref_quem');
+      await executor.query('insert into ref_quem (codigo, nome, ativo) values ($1, $2, true)', [codigo, nome]);
+      inserted = true;
+    }
+  } finally {
+    if (inserted) {
+      clearCache();
+    }
+    if (ownsClient) {
+      executor.release();
+    }
+  }
+}
+
 async function ensureDefaultEmpresasInitialized(): Promise<void> {
   if (!ensureDefaultEmpresasPromise) {
     ensureDefaultEmpresasPromise = ensureDefaultEmpresas().catch((error) => {
@@ -297,6 +368,8 @@ async function ensureDefaultEmpresasInitialized(): Promise<void> {
 
 export async function initializeReferencesRuntime(): Promise<void> {
   await ensureReferenceStatusColumnsInitialized();
+  await ensureQuemTableInitialized();
+  await ensureDefaultQuem();
   await ensureDefaultEmpresasInitialized();
 }
 
@@ -311,6 +384,11 @@ export async function listManagedEmpresas(): Promise<ManagedReferenceItem[]> {
 
 export async function listManagedFornecedores(): Promise<ManagedReferenceItem[]> {
   return listManagedSimple('ref_fornecedor');
+}
+
+export async function listManagedQuem(): Promise<ManagedReferenceItem[]> {
+  await ensureQuemTableInitialized();
+  return listManagedSimple('ref_quem');
 }
 
 export async function listManagedDespesas(): Promise<ManagedReferenceItem[]> {
@@ -376,8 +454,8 @@ export async function salvarEmpresaFornecedorConfig(
 
 async function inactivateReference(
   authUser: AuthUser,
-  table: 'ref_setor' | 'ref_despesa' | 'ref_empresa' | 'ref_fornecedor',
-  entityType: 'setor' | 'despesa' | 'empresa' | 'fornecedor',
+  table: 'ref_setor' | 'ref_despesa' | 'ref_empresa' | 'ref_fornecedor' | 'ref_quem',
+  entityType: 'setor' | 'despesa' | 'empresa' | 'fornecedor' | 'quem',
   nomeRaw: unknown,
 ): Promise<{ nome: string; ativo: false }> {
   if (!canManageSetores(authUser)) {
@@ -433,6 +511,11 @@ export async function inativarEmpresa(authUser: AuthUser, nome: unknown): Promis
 
 export async function inativarFornecedor(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: false }> {
   return inactivateReference(authUser, 'ref_fornecedor', 'fornecedor', nome);
+}
+
+export async function inativarQuem(authUser: AuthUser, nome: unknown): Promise<{ nome: string; ativo: false }> {
+  await ensureQuemTableInitialized();
+  return inactivateReference(authUser, 'ref_quem', 'quem', nome);
 }
 
 async function updateReferenceName(
@@ -493,9 +576,8 @@ async function updateReferenceName(
           update pagamentos
           set
             setor = case when lower(setor) = lower($2) then $1 else setor end,
-            setor_norm = case when lower(setor) = lower($2) then lower($1) else setor_norm end,
-            setor_pagamento = case when lower(setor_pagamento) = lower($2) then $1 else setor_pagamento end
-          where lower(setor) = lower($2) or lower(setor_pagamento) = lower($2)
+            setor_norm = case when lower(setor) = lower($2) then lower($1) else setor_norm end
+          where lower(setor) = lower($2)
         `,
         [newName, oldName],
       );
@@ -703,6 +785,49 @@ export async function salvarDespesaConfig(authUser: AuthUser, payload: unknown):
       },
     });
 
+    await client.query('commit');
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  clearCache();
+  return listTudo();
+}
+
+export async function salvarQuemConfig(authUser: AuthUser, payload: unknown): Promise<ReferenceBundle> {
+  if (!canManageSetores(authUser)) {
+    forbidden('Acao permitida somente para admin.');
+  }
+
+  const body = (payload ?? {}) as { nome?: string };
+  const nome = trimToNull(body.nome);
+  if (!nome) {
+    badRequest('Nome obrigatorio.');
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await ensureQuemTable(client);
+    const existente = await findCodigoByNome(client, 'ref_quem', nome);
+    if (existente) {
+      badRequest('Registro ja existe.');
+    }
+    const codigo = await nextCodigo(client, 'ref_quem');
+    await client.query('insert into ref_quem (codigo, nome, ativo) values ($1, $2, true)', [codigo, nome]);
+    await logAudit(client, {
+      entityType: 'quem',
+      entityId: nome,
+      action: 'CRIADO',
+      actor: authUser.username,
+      details: {
+        descricao: `Opcao de Quem ${nome} criada por ${authUser.username}`,
+        snapshot: { nome },
+      },
+    });
     await client.query('commit');
   } catch (error) {
     await client.query('rollback');

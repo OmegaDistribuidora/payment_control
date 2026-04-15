@@ -357,8 +357,9 @@ function buildOptions(fieldKey, references, form) {
     return options
   }
   if (fieldKey === 'setorPagamento') {
-    const options = references.setores.map((item) => ({
-      key: `setor-pag-${item.codigo}`,
+    const source = Array.isArray(references.quems) && references.quems.length ? references.quems : references.setores
+    const options = source.map((item) => ({
+      key: `quem-${item.codigo}`,
       value: item.nome,
       label: item.nome,
     }))

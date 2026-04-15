@@ -10,6 +10,7 @@ function TopBar({
   onConfigDespesa,
   onConfigUser,
   onConfigEntity,
+  onConfigQuem,
   onChangePassword,
   onOpenExport,
   onOpenReports,
@@ -21,6 +22,7 @@ function TopBar({
   showDespesaButton,
   showUserButton,
   showEntityButton,
+  showQuemButton,
   showExportButton,
   showReportsButton,
   showHistoryButton,
@@ -52,7 +54,7 @@ function TopBar({
     action?.()
   }
 
-  const hasOptions = showDespesaButton || showSetorButton || showUserButton || showEntityButton
+  const hasOptions = showDespesaButton || showSetorButton || showUserButton || showEntityButton || showQuemButton
 
   return (
     <header className="topbar">
@@ -143,6 +145,11 @@ function TopBar({
                     {showEntityButton ? (
                       <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigEntity)}>
                         Empresas/Fornecedores
+                      </button>
+                    ) : null}
+                    {showQuemButton ? (
+                      <button className="topbar-menu-action" type="button" onClick={runMenuAction(onConfigQuem)}>
+                        Quem?
                       </button>
                     ) : null}
                   </div>

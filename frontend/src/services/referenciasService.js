@@ -28,6 +28,10 @@ export function salvarEmpresaFornecedorConfig(auth, payload) {
   return apiRequest('/api/referencias/empresas-fornecedores/config', { method: 'POST', auth, body: payload })
 }
 
+export function salvarQuemConfig(auth, payload) {
+  return apiRequest('/api/referencias/quems/config', { method: 'POST', auth, body: payload })
+}
+
 export function listarSetoresGestao(auth) {
   return apiRequest('/api/referencias/gestao/setores', { auth })
 }
@@ -42,6 +46,10 @@ export function listarEmpresasGestao(auth) {
 
 export function listarFornecedoresGestao(auth) {
   return apiRequest('/api/referencias/gestao/fornecedores', { auth })
+}
+
+export function listarQuemGestao(auth) {
+  return apiRequest('/api/referencias/gestao/quems', { auth })
 }
 
 export function inativarSetor(auth, payload) {
@@ -60,7 +68,11 @@ export function inativarFornecedor(auth, payload) {
   return apiRequest('/api/referencias/fornecedores/inativar', { method: 'POST', auth, body: payload })
 }
 
-const CACHE_KEY = 'payment_control.referencias.v3'
+export function inativarQuem(auth, payload) {
+  return apiRequest('/api/referencias/quems/inativar', { method: 'POST', auth, body: payload })
+}
+
+const CACHE_KEY = 'payment_control.referencias.v4'
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6
 
 function hasReferenceData(data) {

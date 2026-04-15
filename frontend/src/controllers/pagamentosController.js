@@ -28,16 +28,19 @@ import {
   inativarDespesa,
   inativarEmpresa,
   inativarFornecedor,
+  inativarQuem,
   inativarSetor,
   listarDespesasGestao,
   listarEmpresasGestao,
   listarFornecedoresGestao,
+  listarQuemGestao,
   listarReferencias,
   listarReferenciasCached,
   listarSetoresGestao,
   saveCachedReferencias,
   salvarEmpresaFornecedorConfig,
   salvarDespesaConfig,
+  salvarQuemConfig,
   salvarSetorConfig,
 } from '../services/referenciasService.js'
 import {
@@ -147,6 +150,14 @@ function defaultEntityForm() {
   return {
     mode: 'create',
     tipo: 'empresa',
+    nome: '',
+    targetNome: '',
+  }
+}
+
+function defaultQuemForm() {
+  return {
+    mode: 'create',
     nome: '',
     targetNome: '',
   }
@@ -276,8 +287,9 @@ export function usePagamentosController() {
   const [filters, setFilters] = useState(() => buildFiltersForRange('mes', defaultFilters))
   const [pagamentos, setPagamentos] = useState([])
   const [references, setReferences] = useState({
-    setores: [],
-    despesas: [],
+      setores: [],
+      quems: [],
+      despesas: [],
     sedes: [],
     dotacoes: [],
     empresas: [],
@@ -291,6 +303,7 @@ export function usePagamentosController() {
   const [managedDespesas, setManagedDespesas] = useState([])
   const [managedEmpresas, setManagedEmpresas] = useState([])
   const [managedFornecedores, setManagedFornecedores] = useState([])
+  const [managedQuems, setManagedQuems] = useState([])
   const [pageInfo, setPageInfo] = useState({
     number: 0,
     size: 20,
@@ -315,6 +328,8 @@ export function usePagamentosController() {
   const [userForm, setUserForm] = useState({ ...defaultUserForm, permissions: { ...defaultUserForm.permissions } })
   const [entityModalOpen, setEntityModalOpen] = useState(false)
   const [entityForm, setEntityForm] = useState(defaultEntityForm())
+  const [quemModalOpen, setQuemModalOpen] = useState(false)
+  const [quemForm, setQuemForm] = useState(defaultQuemForm())
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [exportForm, setExportForm] = useState(() => defaultExportForm(defaultFilters, 'mes'))
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
@@ -387,6 +402,7 @@ export function usePagamentosController() {
   const applyReferenceBundle = (bundle) => {
     const next = {
       setores: bundle?.setores || [],
+      quems: bundle?.quems || [],
       despesas: bundle?.despesas || [],
       sedes: bundle?.sedes || [],
       dotacoes: bundle?.dotacoes || [],
@@ -410,18 +426,20 @@ export function usePagamentosController() {
 
   const fetchManagedLists = async (authData = auth) => {
     if (!authData || authData.username?.toLowerCase() !== 'admin') return
-    const [usersResponse, setoresResponse, despesasResponse, empresasResponse, fornecedoresResponse] = await Promise.all([
+    const [usersResponse, setoresResponse, despesasResponse, empresasResponse, fornecedoresResponse, quemResponse] = await Promise.all([
       listarUsuariosGestao(authData),
       listarSetoresGestao(authData),
       listarDespesasGestao(authData),
       listarEmpresasGestao(authData),
       listarFornecedoresGestao(authData),
+      listarQuemGestao(authData),
     ])
     setManagedUsers(Array.isArray(usersResponse?.content) ? usersResponse.content : [])
     setManagedSetores(Array.isArray(setoresResponse?.content) ? setoresResponse.content : [])
     setManagedDespesas(Array.isArray(despesasResponse?.content) ? despesasResponse.content : [])
     setManagedEmpresas(Array.isArray(empresasResponse?.content) ? empresasResponse.content : [])
     setManagedFornecedores(Array.isArray(fornecedoresResponse?.content) ? fornecedoresResponse.content : [])
+    setManagedQuems(Array.isArray(quemResponse?.content) ? quemResponse.content : [])
   }
 
   const loadReports = async ({ authOverride, filtersOverride } = {}) => {
@@ -517,6 +535,7 @@ export function usePagamentosController() {
   const canCreateDespesa = Boolean(auth?.permissions?.canManageDespesas)
   const canCreateUser = isAdmin
   const canManageEntities = Boolean(auth?.permissions?.canManageEntities)
+  const canManageQuem = isAdmin
   const canViewReports = Boolean(auth?.permissions?.canViewReports)
   const canViewHistory = Boolean(auth?.permissions?.canViewHistory)
 
@@ -773,6 +792,7 @@ export function usePagamentosController() {
     setDespesaModalOpen(false)
     setUserModalOpen(false)
     setEntityModalOpen(false)
+    setQuemModalOpen(false)
     setExportModalOpen(false)
     setPasswordModalOpen(false)
     setPeriodPreset('mes')
@@ -795,6 +815,7 @@ export function usePagamentosController() {
     setManagedDespesas([])
     setManagedEmpresas([])
     setManagedFornecedores([])
+    setManagedQuems([])
   }
 
   useEffect(() => {
@@ -1043,6 +1064,30 @@ export function usePagamentosController() {
     setEntityModalOpen(false)
   }
 
+  const openQuemModal = async () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!canManageQuem) {
+      showError('Gestao de Quem? indisponivel para este usuario.')
+      return
+    }
+    setQuemForm(defaultQuemForm())
+    setQuemModalOpen(true)
+    setError('')
+    try {
+      await fetchManagedLists(auth)
+    } catch (err) {
+      showError(err.message || 'Erro ao carregar gestao de Quem?.')
+    }
+  }
+
+  const closeQuemModal = () => {
+    setQuemModalOpen(false)
+    setQuemForm(defaultQuemForm())
+  }
+
   const openExportModal = () => {
     if (!auth) {
       setAuthModalOpen(true)
@@ -1139,6 +1184,15 @@ export function usePagamentosController() {
       [key]: value,
       ...(key === 'tipo' ? { targetNome: '' } : {}),
     }))
+  }
+
+  const updateQuemForm = (key, value) => {
+    setQuemForm((prev) => {
+      if (key === 'mode') {
+        return { ...defaultQuemForm(), mode: value }
+      }
+      return { ...prev, [key]: value }
+    })
   }
 
   const openPasswordModal = () => {
@@ -1406,6 +1460,50 @@ export function usePagamentosController() {
         showError('Credenciais invalidas.')
       } else {
         showError(err.message || 'Erro ao salvar empresa/fornecedor.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveQuem = async () => {
+    if (!auth) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!canManageQuem) {
+      showError('Somente admin pode gerenciar Quem?.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      if (quemForm.mode === 'inactivate') {
+        if (!quemForm.targetNome) {
+          showError('Selecione a opcao de Quem? que sera inativada.')
+          return
+        }
+        await inativarQuem(auth, { nome: quemForm.targetNome })
+        await refreshReferences(auth)
+      } else {
+        const nome = quemForm.nome?.trim()
+        if (!nome) {
+          showError('Informe o nome da opcao de Quem?.')
+          return
+        }
+        const bundle = await salvarQuemConfig(auth, { nome })
+        applyReferenceBundle(bundle)
+        saveCachedReferencias(bundle)
+      }
+      await fetchManagedLists(auth)
+      setQuemModalOpen(false)
+      setQuemForm(defaultQuemForm())
+    } catch (err) {
+      if (err.status === 401) {
+        setAuthModalOpen(true)
+        showError('Credenciais invalidas.')
+      } else {
+        showError(err.message || 'Erro ao salvar opcao de Quem?.')
       }
     } finally {
       setLoading(false)
@@ -1977,6 +2075,7 @@ export function usePagamentosController() {
     canViewReports,
     canViewHistory,
     canManageEntities,
+    canManageQuem,
     loginOptions,
     canCreateSetor,
     canCreateDespesa,
@@ -2007,6 +2106,9 @@ export function usePagamentosController() {
     entityForm,
     managedEmpresas,
     managedFornecedores,
+    quemModalOpen,
+    quemForm,
+    managedQuems,
     exportModalOpen,
     exportForm,
     passwordModalOpen,
@@ -2053,6 +2155,7 @@ export function usePagamentosController() {
     openDespesaModal,
     openUserModal,
     openEntityModal,
+    openQuemModal,
     openExportModal,
     openPasswordModal,
     openReportsPage,
@@ -2065,6 +2168,7 @@ export function usePagamentosController() {
     closeDespesaModal,
     closeUserModal,
     closeEntityModal,
+    closeQuemModal,
     closeExportModal,
     closePasswordModal,
     closeHistoryModal,
@@ -2080,6 +2184,7 @@ export function usePagamentosController() {
     updateDespesaForm,
     updateUserForm,
     updateEntityForm,
+    updateQuemForm,
     updateExportForm,
     updatePasswordForm,
     toggleUserVisibility,
@@ -2088,6 +2193,7 @@ export function usePagamentosController() {
     saveDespesa,
     saveUser,
     saveEntity,
+    saveQuem,
     exportPagamentos,
     printCurrentReportDetails,
     exportCurrentReportDetails,
